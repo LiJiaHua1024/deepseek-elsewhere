@@ -142,7 +142,8 @@ export const estimateBranchScale = (
       (block) =>
         block.type === 'server_tool_use' ||
         block.type === 'web_search_tool_result' ||
-        block.type === 'web_fetch_tool_result'
+        block.type === 'web_fetch_tool_result' ||
+        block.type === 'client_tool_call'
     )
     if (hasTools) {
       return calibrated
@@ -176,11 +177,15 @@ export const estimateBranchScale = (
 
 const roundText = ([user, reply]: Round) => {
   const files = user.files.map(({ name }) => name)
-  const links = reply.blocks.flatMap((block) =>
-    block.type === 'server_tool_use' && 'url' in block.input && block.input.url
-      ? [block.input.url]
-      : []
-  )
+  const links = reply.blocks.flatMap((block) => {
+    if (block.type === 'server_tool_use' && 'url' in block.input && block.input.url) {
+      return [block.input.url]
+    }
+    if (block.type === 'client_tool_call' && block.meta?.kind === 'fetch') {
+      return [block.meta.url]
+    }
+    return []
+  })
   return [
     '用户',
     user.content,

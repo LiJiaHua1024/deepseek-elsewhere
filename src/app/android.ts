@@ -1,4 +1,5 @@
 import { readBlobChunks } from '../utils/blob.js'
+import { createId } from '../utils/id.js'
 
 type AndroidBridge = {
   statusInset: () => number
@@ -24,6 +25,8 @@ type AndroidBridge = {
   writeChatConfig: (value: string | null) => boolean
   beginChatRequest: (endpoint: string, format: string, body: string) => string | null
   cancelChatRequest: (id: string) => void
+  beginHttpRequest?: (requestId: string, payload: string) => boolean
+  cancelHttpRequest?: (requestId: string) => void
   requestOfficialBalance?: (requestId: string) => void
   readAccountProfile: () => string | null
   writeAccountProfile: (value: string | null) => boolean
@@ -55,7 +58,74 @@ type AndroidBridge = {
   ) => void
 }
 
-export const android = (window as Window & { DeepSeekAndroid?: AndroidBridge }).DeepSeekAndroid
+export const android =
+  typeof window === 'undefined'
+    ? undefined
+    : (window as Window & { DeepSeekAndroid?: AndroidBridge }).DeepSeekAndroid
+
+export type NativeHttpRequestOptions = {
+  url: string
+  method?: 'GET' | 'POST'
+  headers?: Record<string, string>
+  body?: string
+  timeoutMs?: number
+}
+
+export type NativeHttpResponse = {
+  ok: boolean
+  status: number
+  contentType: string
+  text: string
+  truncated?: boolean
+  error?: string
+}
+
+export const httpRequest = (
+  options: NativeHttpRequestOptions,
+  signal?: AbortSignal
+): Promise<NativeHttpResponse> => {
+  const device = android
+  if (!device?.beginHttpRequest) {
+    return Promise.reject(new Error('Android HTTP bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const requestId = createId()
+  return new Promise<NativeHttpResponse>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-http-response', onResponse)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.cancelHttpRequest?.(requestId)
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onResponse = (event: Event) => {
+      const detail = (event as CustomEvent<NativeHttpResponse & { id?: string }>).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      resolve({
+        ok: Boolean(detail.ok),
+        status: typeof detail.status === 'number' ? detail.status : 0,
+        contentType: typeof detail.contentType === 'string' ? detail.contentType : '',
+        text: typeof detail.text === 'string' ? detail.text : '',
+        truncated: Boolean(detail.truncated),
+        ...(typeof detail.error === 'string' && detail.error ? { error: detail.error } : {}),
+      })
+    }
+    window.addEventListener('android-http-response', onResponse)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    const started = device.beginHttpRequest?.(requestId, JSON.stringify(options))
+    if (!started) {
+      cleanup()
+      reject(new Error('Unable to start Android HTTP request'))
+    }
+  })
+}
 
 const writeAndroidBlob = async (blob: Blob, append: (base64: string) => boolean) => {
   const chunkSize = 32768

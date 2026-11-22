@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { openAndroidPage } from '../../app/openAndroidPage.js'
 import { useAndroidBackInterception } from '../../app/useAndroidBackInterception.js'
 import { useIsAndroidWide } from '../../app/viewport.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import { useTranslate } from '../../i18n/index.js'
 import type { Source } from '../../services/chat/view.js'
 import { formatDate } from '../../utils/format.js'
@@ -22,6 +23,7 @@ const AndroidSource = ({
   single: boolean
   numbered: boolean
 }) => {
+  const zh = useIsZh()
   const date = source.publishedAt ? (formatDate(source.publishedAt, '/') ?? source.publishedAt) : ''
   return (
     <button type="button" className={styles.result} onClick={() => openAndroidPage(source.url)}>
@@ -29,6 +31,9 @@ const AndroidSource = ({
         <SiteLogo url={source.siteIcon} className={styles.logo} />
         <span className={styles.siteName}>{source.siteName}</span>
         {date ? <span className={styles.date}>{date}</span> : null}
+        {source.fetched ? (
+          <span className={styles.fetchedBadge}>{zh ? '已读正文' : 'Read'}</span>
+        ) : null}
         {numbered ? <span className={styles.number}>{source.index}</span> : null}
       </div>
       <span className={styles.resultTitle}>{source.title}</span>

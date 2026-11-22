@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useIsZh } from '../../elsewhere/text.js'
 import type { Source } from '../../services/chat/view.js'
 import { formatDate } from '../../utils/format.js'
 import { SiteLogo } from './SiteLogo.js'
@@ -12,6 +13,7 @@ const formatPublishedAt = (value: string | null) => (value ? (formatDate(value, 
  * 元数据缺失时省略摘要，图标使用链接图标兜底。
  */
 export const SourceCard = ({ source, className }: { source: Source; className?: string }) => {
+  const zh = useIsZh()
   const date = formatPublishedAt(source.publishedAt)
   return (
     <a className={styles.anchor} href={source.url} target="_blank" rel="noreferrer">
@@ -21,6 +23,9 @@ export const SourceCard = ({ source, className }: { source: Source; className?: 
           {source.siteName ? <span className={styles.siteName}>{source.siteName}</span> : null}
           {source.siteName && date ? <span className={styles.divider} /> : null}
           {date ? <span className={styles.date}>{date}</span> : null}
+          {source.fetched ? (
+            <span className={styles.fetchedBadge}>{zh ? '已读正文' : 'Read'}</span>
+          ) : null}
         </div>
         <div className={styles.title}>{source.title}</div>
         {source.snippet ? <div className={styles.snippet}>{source.snippet}</div> : null}

@@ -10,7 +10,8 @@
     "build": "rspack build -c rspack.config.ts",
     "type": "tsc -p tsconfig.json",
     "lint": "oxlint src rspack.config.ts",
-    "format": "oxfmt --write ."
+    "format": "oxfmt --write .",
+    "test": "node --experimental-transform-types --import ./tests/ts-loader.mjs --test tests/*.test.ts"
   },
   "dependencies": {
     "@formatjs/intl-displaynames": "8.0.3",

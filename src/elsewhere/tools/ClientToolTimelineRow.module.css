@@ -1,0 +1,215 @@
+.item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 5px 0 6px 22px;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-markdown-small);
+}
+
+[data-android] .item {
+  padding-left: 24px;
+}
+
+.withLine::after {
+  content: '';
+  position: absolute;
+  left: 7.5px;
+  top: 23px;
+  width: 1px;
+  height: calc(100% - 16px);
+  background-color: var(--dsw-alias-label-dimmed);
+}
+
+[data-android] .withLine::after {
+  background-color: var(--android-thinking-line, var(--dsw-alias-label-dimmed));
+}
+
+.dot {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.dotInner {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--dsw-alias-label-tertiary);
+}
+
+[data-android] .dotInner {
+  width: 6px;
+  height: 6px;
+  background-color: var(--android-thinking-dot, var(--dsw-alias-label-tertiary));
+}
+
+.dotRunning {
+  background-color: var(--dsw-alias-brand-primary);
+  animation: pulse 1.5s linear infinite;
+}
+
+[data-android] .dotRunning {
+  background-color: var(--dsw-alias-brand-primary);
+}
+
+.dotError {
+  background-color: var(--dsw-alias-state-error-secondary);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    animation-timing-function: ease-out;
+  }
+  40% {
+    transform: scale(1.3);
+    animation-timing-function: linear;
+  }
+  60% {
+    transform: scale(1.3);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.staticRow {
+  display: flex;
+  align-items: center;
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 24px;
+}
+
+.actionLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  line-height: 24px;
+}
+
+.actionIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-tertiary);
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.actionText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaMuted {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.metaError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  max-width: min(460px, 100%);
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font: var(--dsw-font-xs-13);
+  line-height: 22px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-markdown-tag);
+}
+
+.chipText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pageTag {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(460px, 100%);
+  font: var(--dsw-font-xs-13);
+  color: var(--dsw-alias-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourcePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 100px;
+  background-color: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-markdown-small);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+
+  &:hover,
+  &.sourcePillActive {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+    --search-row-site-logo-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+[data-android] .sourcePill {
+  padding: 4px 10px 4px 10px;
+  font-size: 14px;
+}
+
+.sourcePillChevron {
+  display: inline-flex;
+  color: var(--dsw-alias-label-tertiary);
+}

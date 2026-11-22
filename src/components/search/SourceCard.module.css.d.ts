@@ -6,6 +6,7 @@ declare const styles: {
   readonly "siteName": string;
   readonly "divider": string;
   readonly "date": string;
+  readonly "fetchedBadge": string;
   readonly "title": string;
   readonly "snippet": string;
 };

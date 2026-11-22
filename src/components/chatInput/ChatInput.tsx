@@ -35,7 +35,7 @@ import { stopReadAloud } from '../../services/speech/readAloud.js'
 import { IconButton } from '../base/IconButton.js'
 import { AndroidCircle } from '../base/AndroidIcons.js'
 import { Tooltip } from '../base/Tooltip.js'
-import { ensureApiKey } from '../settings/settingsDialogState.js'
+import { ensureApiKey, openSettings } from '../settings/settingsDialogState.js'
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
 import { ACCEPT, useUploads } from '../../services/attachments.js'
@@ -51,6 +51,8 @@ import { useHoldToTalk } from './useHoldToTalk.js'
 import { useTranslate } from '../../i18n/index.js'
 import { ContextRing } from '../../elsewhere/ContextRing.js'
 import { LowBalanceBanner } from '../../elsewhere/LowBalanceBanner.js'
+import { isSearchEngineReady, useSearchToolsConfig } from '../../elsewhere/search/config.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import styles from './ChatInput.module.css'
 
 const useVoiceMode = create<{ enabled: boolean }>(() => ({ enabled: false }))
@@ -106,7 +108,11 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
+  const zh = useIsZh()
   const search = useSettings((state) => state.search)
+  const searchToolsConfig = useSearchToolsConfig()
+  const usingExternalSearch = customEndpoint || searchToolsConfig.useExternalOnOfficial
+  const searchEngineReady = isSearchEngineReady(searchToolsConfig, apiKey)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -229,7 +235,12 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     setText(current.slice(0, start) + transcript + current.slice(end))
     if (sendSpoken.current) {
       sendSpoken.current = false
-      if (!useChatStore.getState().importingHistory && ensureApiKey() && !isEditingTarget()) {
+      if (
+        !useChatStore.getState().importingHistory &&
+        ensureApiKey() &&
+        ensureSearchReady() &&
+        !isEditingTarget()
+      ) {
         stopReadAloud()
         sendMessage(sessionId)
       }
@@ -362,6 +373,22 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     textareaRef.current?.focus({ preventScroll: true })
   }, [typing])
 
+  const ensureSearchReady = () => {
+    const settings = useSettings.getState()
+    const toolsState = useSearchToolsConfig.getState()
+    const external = Boolean(settings.chatConfig.endpoint) || toolsState.useExternalOnOfficial
+    if (settings.search && external && !isSearchEngineReady(toolsState, settings.apiKey)) {
+      showToast(
+        settings.locale === 'zh-CN'
+          ? '请先在「设置 → 联网搜索与工具」配置搜索引擎'
+          : 'Configure a search engine in Settings → Web Search & Tools'
+      )
+      openSettings('tools')
+      return false
+    }
+    return true
+  }
+
   const send = () => {
     if (useChatStore.getState().importingHistory || voice.status !== 'idle') {
       return
@@ -376,6 +403,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       if (
         !prepared ||
         !ensureApiKey() ||
+        !ensureSearchReady() ||
         !editMessage(sessionId, currentEditing.messageId, prepared.text, prepared.files)
       ) {
         return
@@ -389,7 +417,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
-    if (!ensureApiKey() || !sendMessage(sessionId)) {
+    if (!ensureApiKey() || !ensureSearchReady() || !sendMessage(sessionId)) {
       return
     }
     setShowAttachments(false)
@@ -572,33 +600,41 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           {/* 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
           <div ref={togglesRef} className={styles.toggles}>
             {customEndpoint ? null : (
-              <>
-                <Tooltip content={t('deactivatedThinkTooltip')}>
-                  <button
-                    type="button"
-                    className={clsx(styles.toggle, thinking && styles.selected)}
-                    aria-label={t('thinkingSwitch')}
-                    aria-pressed={thinking}
-                    onClick={() => setThinking(!thinking)}
-                  >
-                    <IconThinkOutline14 />
-                    <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-                  </button>
-                </Tooltip>
-                <Tooltip content={t('deactivatedSearchTooltip')}>
-                  <button
-                    type="button"
-                    className={clsx(styles.toggle, search && styles.selected)}
-                    aria-label={t('search')}
-                    aria-pressed={search}
-                    onClick={() => setSearch(!search)}
-                  >
-                    <IconGlobeLanguageOutline14 />
-                    <span className={styles.toggleLabel}>{t('search')}</span>
-                  </button>
-                </Tooltip>
-              </>
+              <Tooltip content={t('deactivatedThinkTooltip')}>
+                <button
+                  type="button"
+                  className={clsx(styles.toggle, thinking && styles.selected)}
+                  aria-label={t('thinkingSwitch')}
+                  aria-pressed={thinking}
+                  onClick={() => setThinking(!thinking)}
+                >
+                  <IconThinkOutline14 />
+                  <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
+                </button>
+              </Tooltip>
             )}
+            <Tooltip content={t('deactivatedSearchTooltip')}>
+              <button
+                type="button"
+                className={clsx(styles.toggle, search && styles.selected)}
+                aria-label={t('search')}
+                aria-pressed={search}
+                onClick={() => {
+                  const next = !search
+                  setSearch(next)
+                  if (next && usingExternalSearch && !searchEngineReady) {
+                    showToast(
+                      zh
+                        ? '请先在「设置 → 联网搜索与工具」配置搜索引擎'
+                        : 'Configure a search engine in Settings → Web Search & Tools'
+                    )
+                  }
+                }}
+              >
+                <IconGlobeLanguageOutline14 />
+                <span className={styles.toggleLabel}>{t('search')}</span>
+              </button>
+            </Tooltip>
           </div>
           <div className={styles.right}>
             <ContextRing sessionId={sessionId} />

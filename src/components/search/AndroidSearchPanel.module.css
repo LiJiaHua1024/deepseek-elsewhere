@@ -204,6 +204,17 @@ body[data-ds-dark-theme] .sheet {
   white-space: nowrap;
 }
 
+.fetchedBadge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background-color: var(--dsw-alias-markdown-tag);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
 .number {
   display: inline-flex;
   flex: 0 0 20px;

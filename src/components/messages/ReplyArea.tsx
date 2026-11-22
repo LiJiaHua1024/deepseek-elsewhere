@@ -35,6 +35,10 @@ import { Tooltip } from '../base/Tooltip.js'
 import { Markdown } from '../markdown/Markdown.js'
 import { SiteThumbnails } from '../search/SiteLogo.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
+import { ClientToolTimelineRow } from '../../elsewhere/tools/ClientToolTimelineRow.js'
+import { getClientToolsAreaTitle } from '../../elsewhere/tools/timelineTitle.js'
+import clientToolStyles from '../../elsewhere/tools/ClientToolTimelineRow.module.css'
+import { useIsZh } from '../../elsewhere/text.js'
 import { useStopFollowing } from './scrollContext.js'
 import styles from './ReplyArea.module.css'
 import './thinking.markdown.css'
@@ -71,7 +75,9 @@ export const ReplyArea = memo(function ReplyArea({
   hasResponse: boolean
 }) {
   useTranslate()
+  const zh = useIsZh()
   const fold = useSettings((state) => state.foldThinking)
+  const panelEntry = useSearchPanel((state) => state.entry)
   const [override, setOverride] = useState<boolean>()
   const [streamExpanded, setStreamExpanded] = useState(false)
   const [previewOverflow, setPreviewOverflow] = useState(false)
@@ -80,11 +86,19 @@ export const ReplyArea = memo(function ReplyArea({
   const stepsRef = useRef<HTMLDivElement>(null)
   const clipRef = useRef<HTMLDivElement>(null)
   const stopFollowing = useStopFollowing()
-  const open = override ?? (!android || !fold || !hasResponse)
-  const titleActive = streaming && !hasResponse
+  const hasClientTools = view.steps.some((step) => step.type === 'client_tool')
+  const hasRunningClientTool =
+    streaming &&
+    view.steps.some((step) => step.type === 'client_tool' && step.block.status === 'running')
+  const open =
+    override ??
+    (hasClientTools ? streaming && (!hasResponse || hasRunningClientTool) : !android || !fold || !hasResponse)
+  const titleActive = hasClientTools
+    ? streaming && (!hasResponse || hasRunningClientTool)
+    : streaming && !hasResponse
   // 未记录请求开关时，按是否有思考内容显示标题。
   const thinking = message.thinking ?? view.steps.some((step) => step.type === 'thinking')
-  const previewActive = Boolean(android && thinking && titleActive)
+  const previewActive = Boolean(android && thinking && !hasClientTools && titleActive)
   useTicker(titleActive, 1000)
 
   useLayoutEffect(() => {
@@ -160,9 +174,15 @@ export const ReplyArea = memo(function ReplyArea({
   if (view.steps.length === 0 && (android || !(message.thinking && streaming))) {
     return null
   }
-  const title = thinking ? getAreaTitle(view, streaming, Date.now(), hasResponse) : null
+  const title = hasClientTools
+    ? getClientToolsAreaTitle(view, streaming, Date.now(), hasResponse, zh)
+    : thinking
+      ? getAreaTitle(view, streaming, Date.now(), hasResponse)
+      : null
   const stopped = !streaming && !hasResponse
   const compactPreview = (previewActive && !streamExpanded) || (!open && retainPreview)
+  const clientSourcesEntry = `${message.id}-client-sources`
+  const showClientSourcePill = hasClientTools && !streaming && view.searchResults.length > 0
   const toggle = () => {
     if (previewActive) {
       if (previewOverflow) {
@@ -188,6 +208,27 @@ export const ReplyArea = memo(function ReplyArea({
   ))
   return (
     <div className={styles.area} data-expanded={android && title && open ? '' : undefined}>
+      {showClientSourcePill ? (
+        <button
+          type="button"
+          className={clsx(
+            clientToolStyles.sourcePill,
+            panelEntry === clientSourcesEntry && clientToolStyles.sourcePillActive
+          )}
+          aria-expanded={panelEntry === clientSourcesEntry}
+          onClick={() => toggleSearchPanel(clientSourcesEntry, view.searchResults)}
+        >
+          <SiteThumbnails sources={view.searchResults} />
+          <span>
+            {zh
+              ? `已浏览 ${view.searchResults.length} 个网页`
+              : `Browsed ${view.searchResults.length} ${view.searchResults.length === 1 ? 'page' : 'pages'}`}
+          </span>
+          <span className={clientToolStyles.sourcePillChevron} aria-hidden="true">
+            <IconChevronRightOutline14 />
+          </span>
+        </button>
+      ) : null}
       {title ? (
         <div
           className={styles.title}
@@ -255,7 +296,10 @@ export const ReplyArea = memo(function ReplyArea({
 })
 
 const stepKey = (step: Step, index: number) =>
-  step.type === 'thinking' || step.type === 'text' || step.type === 'search'
+  step.type === 'thinking' ||
+  step.type === 'text' ||
+  step.type === 'search' ||
+  step.type === 'client_tool'
     ? step.key
     : `${step.type}-${index}`
 
@@ -312,6 +356,8 @@ const StepItem = ({
       return <FindRow step={step} isLast={isLast} />
     case 'read_link':
       return <ReadLinkRow step={step} isLast={isLast} />
+    case 'client_tool':
+      return <ClientToolTimelineRow step={step} isLast={isLast} />
     default:
       return null
   }

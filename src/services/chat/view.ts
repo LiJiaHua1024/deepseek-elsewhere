@@ -1,4 +1,5 @@
 import { translate } from '../../i18n/index.js'
+import type { ClientToolCallBlock } from '../../elsewhere/tools/types.js'
 import type {
   ServerToolKind,
   TextCitation,
@@ -25,6 +26,8 @@ export type Source = {
   siteIcon: string | null
   /** 引用角标与搜索结果列表上的编号，从 1 开始 */
   index: number
+  /** 是否已被网页读取工具成功获取正文 */
+  fetched?: boolean
 }
 
 export type ToolStatus = 'wip' | 'done' | 'failed'
@@ -66,7 +69,21 @@ export type ThinkingStep = { type: 'thinking'; key: string; blocks: ThinkingPart
 /** 工具调用前输出的说明文字 */
 export type PreambleStep = { type: 'text'; key: string; markdown: string }
 
-export type Step = SearchStep | OpenStep | FindStep | ReadLinkStep | ThinkingStep | PreambleStep
+export type ClientToolStep = {
+  type: 'client_tool'
+  key: string
+  block: ClientToolCallBlock
+  stepNumber: number
+}
+
+export type Step =
+  | SearchStep
+  | OpenStep
+  | FindStep
+  | ReadLinkStep
+  | ThinkingStep
+  | PreambleStep
+  | ClientToolStep
 
 export type ReplyView = {
   steps: Step[]
@@ -117,7 +134,7 @@ class SourceRegistry {
     url: string,
     title: string | null,
     publishedAt: string | null,
-    metadata?: Pick<WebSearchResult, 'snippet' | 'site_icon' | 'site_name'>
+    metadata?: Pick<WebSearchResult, 'snippet' | 'site_icon' | 'site_name'> & { fetched?: boolean }
   ): Source {
     const siteName = metadata?.site_name?.trim() || getSiteName(url)
     const snippet = metadata?.snippet?.trim() || null
@@ -134,6 +151,9 @@ class SourceRegistry {
       existing.publishedAt ||= publishedAt
       existing.snippet ||= snippet
       existing.siteIcon ||= siteIcon
+      if (metadata?.fetched) {
+        existing.fetched = true
+      }
       return existing
     }
     const source: Source = {
@@ -144,6 +164,7 @@ class SourceRegistry {
       snippet,
       siteIcon,
       index: this.list.length + 1,
+      ...(metadata?.fetched ? { fetched: true } : {}),
     }
     this.list.push(source)
     this.byUrl.set(url, source)
@@ -194,6 +215,31 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
 
   // 来源编号按搜索结果、打开的网页在回复中出现的顺序，与正文引用无关
   for (const block of reply.blocks) {
+    if (block.type === 'client_tool_call') {
+      if (block.meta?.kind === 'search') {
+        for (const item of block.meta.results) {
+          const source = registry.add(item.url, item.title, item.publishedAt ?? null, {
+            snippet: item.snippet,
+            site_icon: item.siteIcon ?? null,
+            site_name: item.siteName ?? null,
+          })
+          if (!searchResults.includes(source)) {
+            searchResults.push(source)
+          }
+        }
+      } else if (block.meta?.kind === 'fetch' && block.status === 'done') {
+        const source = registry.add(block.meta.url, block.meta.title, null, {
+          snippet: '',
+          site_icon: null,
+          site_name: null,
+          fetched: true,
+        })
+        if (!searchResults.includes(source)) {
+          searchResults.push(source)
+        }
+      }
+      continue
+    }
     if (block.type !== 'server_tool_use') {
       continue
     }
@@ -227,6 +273,7 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
     pendingText = []
   }
 
+  let clientToolStepNumber = 0
   reply.blocks.forEach((block, index) => {
     // 模板统一由 describeReply 展示，不能混入模型正文或工具步骤前的说明文字。
     if (block.type === 'text' && block.isTemplate) {
@@ -248,6 +295,19 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
         mergedThinking = { type: 'thinking', key: `thinking-${index}`, blocks: [block] }
         steps.push(mergedThinking)
       }
+      return
+    }
+    if (block.type === 'client_tool_call') {
+      flushPreamble()
+      if (block.status !== 'aborted_loop') {
+        clientToolStepNumber += 1
+      }
+      steps.push({
+        type: 'client_tool',
+        key: block.id,
+        block,
+        stepNumber: clientToolStepNumber,
+      })
       return
     }
     if (block.type !== 'server_tool_use') {

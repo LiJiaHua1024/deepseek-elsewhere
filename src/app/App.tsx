@@ -42,6 +42,8 @@ import {
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useAndroidDrawerGesture } from '../components/sider/useAndroidDrawerGesture.js'
 import { SessionStatusSheet } from '../elsewhere/SessionStatusSheet.js'
+import { ToolDetailSheet } from '../elsewhere/tools/ToolDetailSheet.js'
+import { closeToolDetail } from '../elsewhere/tools/toolDetailState.js'
 import styles from './App.module.css'
 
 const SIDE_DRAWER_WIDTH = 326
@@ -263,6 +265,8 @@ export const App = () => {
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
+  // 工具详情抽屉只属于当前会话
+  useEffect(closeToolDetail, [activeId])
   // 切换会话时停止朗读
   useEffect(stopReadAloud, [activeId])
   // Web 窄屏切换布局时收起抽屉；Android 跨 840dp 断点时与官方一致（窄→宽展开，宽→窄收起）
@@ -355,6 +359,7 @@ export const App = () => {
       </div>
       {android ? <AndroidSettings chatFrame={frameRef} /> : <SettingsDialog />}
       <SessionStatusSheet />
+      <ToolDetailSheet />
       <Toast />
     </>
   )

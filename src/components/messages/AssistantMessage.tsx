@@ -126,6 +126,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   }, [customEndpoint, isLast, message.id, message.stopReason, responseText, streaming])
   const waiting =
     streaming && view.steps.length === 0 && !view.answer && (android || !message.thinking)
+  const hasClientTools = view.steps.some((step) => step.type === 'client_tool')
   const summaryEntry = `${message.id}-summary`
   return (
     <div
@@ -312,7 +313,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           ))}
         </div>
       ) : null}
-      {!streaming && !refused && view.searchResults.length > 0 ? (
+      {!streaming && !refused && !hasClientTools && view.searchResults.length > 0 ? (
         <div
           className={clsx(styles.summary, panelEntry === summaryEntry && styles.summaryActive)}
           role="button"

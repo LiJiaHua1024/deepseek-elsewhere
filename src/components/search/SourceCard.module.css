@@ -42,6 +42,18 @@
   color: var(--search-view-card-secondary-color, var(--dsw-alias-label-secondary));
 }
 
+.fetchedBadge {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background-color: var(--dsw-alias-markdown-tag);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
 .title {
   display: -webkit-box;
   margin-top: 6px;

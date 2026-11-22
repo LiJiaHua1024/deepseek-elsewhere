@@ -142,7 +142,31 @@ export type InlineFileBlockParam =
       source: { type: 'base64'; media_type: 'application/pdf'; data: string }
     }
 
-export type UserBlockParam = TextBlockParam | FileBlockParam | InlineFileBlockParam
+export type ClientToolSchema = {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+export type ClientToolUseBlockParam = {
+  type: 'tool_use'
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export type ToolResultBlockParam = {
+  type: 'tool_result'
+  tool_use_id: string
+  content: string
+  is_error?: boolean
+}
+
+export type UserBlockParam =
+  | TextBlockParam
+  | FileBlockParam
+  | InlineFileBlockParam
+  | ToolResultBlockParam
 
 /** 接口接受的调用块；历史只回传 kind 为 read_link 的调用 */
 export type ServerToolUseBlockParam = Pick<
@@ -162,6 +186,7 @@ export type AssistantBlockParam =
   | ServerToolUseBlockParam
   | WebSearchToolResultBlockParam
   | WebFetchToolResultBlockParam
+  | ClientToolUseBlockParam
 
 /** 末尾 assistant 自动触发继续生成，无需 prefix 字段 */
 export type MessageParam =
@@ -189,6 +214,7 @@ export type CreateMessageRequest = {
   messages: MessageParam[]
   thinking: { type: 'enabled' | 'disabled' }
   tools?: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
+  clientTools?: ClientToolSchema[]
   safety_check?: { level: 'high' }
   title?: { enabled: boolean }
 }

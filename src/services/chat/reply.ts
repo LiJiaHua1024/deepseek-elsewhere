@@ -154,6 +154,11 @@ export const settleReply = (
     if (reply.stopReason === 'refusal' && (block.type === 'thinking' || block.type === 'text')) {
       return []
     }
+    if (block.type === 'client_tool_call') {
+      return block.status === 'running'
+        ? [{ ...block, status: 'stopped', endedAt: block.endedAt ?? now }]
+        : [block]
+    }
     return block.type === 'thinking' && block.startedAt !== undefined && block.endedAt === undefined
       ? [{ ...block, endedAt: now }]
       : [block]
@@ -180,6 +185,7 @@ export const canContinueReply = (reply: AssistantMessage): boolean => {
         block.type === 'server_tool_use' ||
         block.type === 'web_search_tool_result' ||
         block.type === 'web_fetch_tool_result' ||
+        block.type === 'client_tool_call' ||
         (block.type === 'text' && block.isTemplate)
     )
   ) {

@@ -1,7 +1,7 @@
 import { android } from '../../app/android.js'
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import { CHAT_API_PATHS, type ChatConfig } from './chatConfig.js'
-import { openAIRequest, readOpenAIFrame } from './openaiChat.js'
+import { createOpenAIStreamAdapter, openAIRequest, readOpenAIFrame } from './openaiChat.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
@@ -10,8 +10,6 @@ import type {
   FileObject,
   FilePurpose,
   MessageStreamEvent,
-  MessageUsage,
-  StopReason,
 } from './types.js'
 
 /** 构建期 API 地址，默认 https://api.deepseek.com；本地开发支持开发服务器代理 */
@@ -148,8 +146,27 @@ const hasFile = (body: CreateMessageRequest) =>
     (message) =>
       message.role === 'user' &&
       typeof message.content !== 'string' &&
-      message.content.some((block) => block.type !== 'text' && block.source.type === 'file')
+      message.content.some(
+        (block) =>
+          (block.type === 'image' || block.type === 'document') && block.source.type === 'file'
+      )
   )
+
+const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
+  const { clientTools, ...rest } = body
+  if (clientTools?.length) {
+    return JSON.stringify({
+      ...rest,
+      tools: clientTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.inputSchema,
+      })),
+      stream: true,
+    })
+  }
+  return JSON.stringify({ ...rest, stream: true })
+}
 
 const openMessageStream = (apiKey: string, body: CreateMessageRequest, signal: AbortSignal) =>
   request(`${ANTHROPIC_BASE_URL}/messages`, {
@@ -159,7 +176,7 @@ const openMessageStream = (apiKey: string, body: CreateMessageRequest, signal: A
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     },
-    body: JSON.stringify({ ...body, stream: true }),
+    body: serializeOfficialAnthropicBody(body),
     signal,
   })
 
@@ -169,7 +186,12 @@ const withDeepSeekExtensionsFallback = (
 ) =>
   send(body).catch((error: unknown) => {
     if (
-      !(body.tools?.length || body.safety_check || body.title?.enabled) ||
+      !(
+        body.tools?.length ||
+        body.clientTools?.length ||
+        body.safety_check ||
+        body.title?.enabled
+      ) ||
       !(error instanceof ApiError) ||
       error.status !== 400 ||
       !/\buser input too long, \d+ tokens exceeds max 32768 tokens\b/i.test(error.message)
@@ -177,7 +199,13 @@ const withDeepSeekExtensionsFallback = (
       throw error
     }
     // 扩展模式在生成前拒绝长输入时，用同一协议的基础模式发送同一上下文。
-    return send({ ...body, tools: undefined, safety_check: undefined, title: undefined })
+    return send({
+      ...body,
+      tools: undefined,
+      clientTools: undefined,
+      safety_check: undefined,
+      title: undefined,
+    })
   })
 
 /**
@@ -251,7 +279,13 @@ async function* readAnthropicStream(response: Response, signal: AbortSignal) {
   throw new ApiError('interrupted', '')
 }
 
-const customMessagesRequest = ({ model, system, messages, max_tokens }: CreateMessageRequest) => ({
+export const customMessagesRequest = ({
+  model,
+  system,
+  messages,
+  max_tokens,
+  clientTools,
+}: CreateMessageRequest) => ({
   model,
   system: system || undefined,
   max_tokens,
@@ -260,11 +294,25 @@ const customMessagesRequest = ({ model, system, messages, max_tokens }: CreateMe
       return []
     }
     if (message.role === 'assistant') {
-      const content = message.content.filter((block) => block.type === 'text')
+      const content = message.content.filter((block) => {
+        if (block.type === 'text' || block.type === 'tool_use') {
+          return true
+        }
+        return block.type === 'thinking' && Boolean(block.signature)
+      })
       return content.length ? [{ ...message, content }] : []
     }
     return [message]
   }),
+  ...(clientTools?.length
+    ? {
+        tools: clientTools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.inputSchema,
+        })),
+      }
+    : {}),
   stream: true,
 })
 
@@ -418,15 +466,11 @@ async function* streamCompatibleMessage(
       yield* readAnthropicStream(response, signal)
       return
     }
-    let block: 'text' | 'thinking' | undefined
-    let index = -1
-    let stop: StopReason | undefined
-    let usage: MessageUsage | undefined
-    let title: string | undefined
+    const adapter = createOpenAIStreamAdapter()
     let complete = false
     for await (const packet of readStreamPayloads(response, signal)) {
       if (packet.done) {
-        complete = format === 'chat' && (index >= 0 || stop !== undefined)
+        complete = format === 'chat' && (adapter.hasOutput() || adapter.getStop() !== undefined)
         break
       }
       const frame = readOpenAIFrame(format, packet.payload)
@@ -436,56 +480,20 @@ async function* streamCompatibleMessage(
       if (packet.eventName === 'error') {
         throw new ApiError('stream', packet.data)
       }
-      const deltas = [
-        ['thinking', frame.thinking],
-        ['text', frame.text],
-      ] as const
-      for (const [type, delta] of deltas) {
-        if (!delta) {
-          continue
-        }
-        if (block !== type) {
-          if (block) {
-            yield { type: 'content_block_stop', index }
-          }
-          block = type
-          index += 1
-          yield {
-            type: 'content_block_start',
-            index,
-            content_block:
-              type === 'text' ? { type, text: '' } : { type, thinking: '', signature: '' },
-          }
-        }
-        yield {
-          type: 'content_block_delta',
-          index,
-          delta:
-            type === 'text'
-              ? { type: 'text_delta', text: delta }
-              : { type: 'thinking_delta', thinking: delta },
-        }
+      for (const event of adapter.push(frame)) {
+        yield event
       }
-      stop = frame.stop ?? stop
-      usage = frame.usage ?? usage
-      title = frame.title ?? title
       if (frame.done) {
         complete = true
         break
       }
     }
-    if (!complete && !(format === 'chat' && stop)) {
+    if (!complete && !(format === 'chat' && adapter.getStop())) {
       throw new ApiError('interrupted', '')
     }
-    if (block) {
-      yield { type: 'content_block_stop', index }
+    for (const event of adapter.finish()) {
+      yield event
     }
-    yield {
-      type: 'message_delta',
-      delta: { stop_reason: stop ?? 'end_turn', stop_sequence: null, title },
-      usage,
-    }
-    yield { type: 'message_stop' }
   } finally {
     native?.close()
   }

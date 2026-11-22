@@ -7,6 +7,7 @@ import {
   IconDataOutline16,
   IconDownloadOutline16,
   IconFollowsystemOutline16,
+  IconGlobeLanguageOutline14,
   IconLightOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
@@ -42,6 +43,8 @@ import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
 import styles from './Settings.module.css'
 
@@ -54,18 +57,20 @@ export const SettingsDialog = () => {
   return open ? <SettingsContent /> : null
 }
 
-const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
+const sections: { value: SettingsSection; label?: TranslationKey; icon: ReactNode }[] = [
   {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
+  { value: 'tools', icon: <IconGlobeLanguageOutline14 /> },
   { value: 'account', label: 'accountManagement', icon: <ProfileIcon /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 
 const SettingsContent = () => {
   const t = useTranslate()
+  const zh = useIsZh()
   const isMobile = useIsMobile()
   const model = useSettings((state) => state.chatConfig.model)
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
@@ -103,7 +108,7 @@ const SettingsContent = () => {
               onClick={() => setSection(item.value)}
             >
               {item.icon}
-              {t(item.label)}
+              {item.label ? t(item.label) : zh ? '联网搜索与工具' : 'Web Search & Tools'}
             </button>
           ))}
         </div>
@@ -116,6 +121,8 @@ const SettingsContent = () => {
               <LocationSetting />
               <UsageToggleSetting />
             </>
+          ) : section === 'tools' ? (
+            <SearchToolsSettings variant="web" />
           ) : section === 'account' ? (
             <ProfileEditor />
           ) : (

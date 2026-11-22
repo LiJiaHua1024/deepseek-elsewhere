@@ -47,6 +47,11 @@ import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import {
+  setWebFetchMode,
+  useSearchToolsConfig,
+} from '../../elsewhere/search/config.js'
+import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.js'
 import { setShowUsageInChat, useElsewherePrefs } from '../../elsewhere/preferences.js'
 import styles from './AndroidSettings.module.css'
 
@@ -83,8 +88,9 @@ type Page =
   | 'export'
   | 'font'
   | 'personalization'
+  | 'tools'
   | 'agreements'
-type Popup = 'locale' | 'theme' | 'voice' | 'logout' | 'delete' | 'import'
+type Popup = 'locale' | 'theme' | 'voice' | 'webFetch' | 'logout' | 'delete' | 'import'
 
 const parentPage: Record<Page, Page | null> = {
   root: null,
@@ -94,6 +100,7 @@ const parentPage: Record<Page, Page | null> = {
   export: 'data',
   font: 'root',
   personalization: 'root',
+  tools: 'root',
   agreements: 'root',
 }
 
@@ -313,7 +320,15 @@ export const AndroidSettings = ({ chatFrame }: { chatFrame: RefObject<HTMLDivEle
   const section = useSettingsDialog((state) => state.section)
   return open ? (
     <Settings
-      start={section === 'general' ? 'root' : section === 'advanced' ? 'advanced' : 'account'}
+      start={
+        section === 'general'
+          ? 'root'
+          : section === 'advanced'
+            ? 'advanced'
+            : section === 'tools'
+              ? 'tools'
+              : 'account'
+      }
       chatFrame={chatFrame}
       key={section}
     />
@@ -350,6 +365,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const sessions = useChatStore((state) => state.sessions.length)
   const editor = useApiKeyEditor()
   const showUsageInChat = useElsewherePrefs((state) => state.showUsageInChat)
+  const webFetchMode = useSearchToolsConfig((state) => state.webFetchMode)
   const updateBusy = update.phase === 'checking' || update.phase === 'downloading'
 
   useEffect(() => {
@@ -384,6 +400,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     export: t('exportAllLabel'),
     font: tr('字体大小', 'Text size'),
     personalization: tr('个性化', 'Personalization'),
+    tools: tr('联网搜索与工具', 'Web Search & Tools'),
     agreements: tr('服务协议', 'Service agreement'),
   }
   const language = tr('语言', 'Language')
@@ -639,6 +656,11 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 label={labels.personalization}
                 icon={<PersonalizationIcon />}
                 onClick={() => openPage('personalization')}
+              />
+              <Row
+                label={labels.tools}
+                icon={<IconGlobeLanguageOutline14 />}
+                onClick={() => openPage('tools')}
               />
             </Group>
             <Group label={tr('语音', 'Voice')}>
@@ -920,6 +942,12 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             </p>
           </>
         ) : null}
+        {screen === 'tools' ? (
+          <SearchToolsSettings
+            variant="android"
+            onSelectWebFetchMode={() => setPopup('webFetch')}
+          />
+        ) : null}
         {screen === 'agreements' ? (
           <Group>
             <Row
@@ -1010,6 +1038,22 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           confirmLabel={tr('确认', 'Confirm')}
           confirm={(value) => {
             setThemePreference(value)
+            setPopup(null)
+          }}
+          dismiss={back}
+        />
+      ) : null}
+      {popup === 'webFetch' ? (
+        <Choice
+          title={tr('网页读取', 'Web page reading')}
+          value={webFetchMode}
+          fields={[
+            { id: 'auto', label: tr('自动', 'Auto') },
+            { id: 'off', label: tr('关闭', 'Off') },
+          ]}
+          confirmLabel={tr('确认', 'Confirm')}
+          confirm={(value) => {
+            setWebFetchMode(value)
             setPopup(null)
           }}
           dismiss={back}

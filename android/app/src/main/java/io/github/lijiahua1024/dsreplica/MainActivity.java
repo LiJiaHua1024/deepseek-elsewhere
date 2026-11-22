@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
     private ApiKeyStore keys;
     private ApiKeyStore chatConfig;
     private final CustomChatTransport customChat = new CustomChatTransport();
+    private final NativeHttpTransport nativeHttp = new NativeHttpTransport();
     private SharedPreferences profilePreferences;
     private ValueCallback<Uri[]> fileCallback;
     private boolean choosingPhotos;
@@ -464,6 +465,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         customChat.close();
+        nativeHttp.close();
         inAppBack.setEnabled(false);
         if (accessibility != null) {
             accessibility.removeAccessibilityStateChangeListener(accessibilityState);
@@ -560,6 +562,22 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public void cancelChatRequest(String id) { if (id != null) customChat.cancel(id); }
+
+        @JavascriptInterface
+        public boolean beginHttpRequest(String requestId, String payload) {
+            return nativeHttp.begin(requestId, payload, json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-http-response',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public void cancelHttpRequest(String requestId) {
+            if (requestId != null) nativeHttp.cancel(requestId);
+        }
 
         @JavascriptInterface
         public void requestOfficialBalance(String requestId) {

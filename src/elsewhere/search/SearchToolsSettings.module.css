@@ -1,0 +1,289 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 0;
+}
+
+.androidContainer {
+  gap: 20px;
+  padding: 0;
+}
+
+.card {
+  border-radius: 16px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-skeleton);
+  padding: 14px 16px;
+}
+
+.androidContainer .card {
+  border: none;
+  background: var(--settings-card, var(--dsw-alias-bg-layer-2));
+  padding: 14px 16px;
+}
+
+.androidFlatCard {
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--settings-card, var(--dsw-alias-bg-layer-2));
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+  margin-bottom: 12px;
+}
+
+.androidContainer .cardTitle {
+  font-size: 15px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.chipSelected {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-brand-text);
+  font-weight: 500;
+
+  &:hover {
+    background: var(--dsw-alias-button-ghost-active-hover);
+  }
+}
+
+.engineForm {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.statusRow {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statusMissing {
+  color: var(--dsw-static-amber-600);
+}
+
+[data-ds-dark-theme] .statusMissing {
+  color: var(--dsw-static-amber-400);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-specific-input-major);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 150ms;
+
+  &:focus {
+    border-color: var(--dsw-alias-brand-primary);
+  }
+}
+
+.testButton {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms;
+
+  &:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.testFeedback {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.testOk {
+  color: var(--dsw-static-green-500);
+}
+
+[data-ds-dark-theme] .testOk {
+  color: var(--dsw-static-green-400);
+}
+
+.testError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.androidRow {
+  min-height: 48px;
+  padding: 12px 16px;
+  font-size: 16px;
+  cursor: pointer;
+
+  &:active {
+    background: var(--settings-button, var(--dsw-alias-interactive-bg-hover));
+  }
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowLabel {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.androidContainer .rowLabel {
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.rowSubtitle {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowValueGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--settings-muted, var(--dsw-alias-label-tertiary));
+  font-size: 15px;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l3);
+  cursor: pointer;
+  transition: background-color 160ms;
+
+  span {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 160ms;
+  }
+
+  &[aria-checked='true'] {
+    background: var(--dsw-alias-brand-primary);
+
+    span {
+      transform: translateX(18px);
+    }
+  }
+}
+
+.androidContainer .switch {
+  width: 52px;
+  height: 32px;
+  background: #e5e5e5;
+
+  span {
+    top: 4px;
+    left: 4px;
+    width: 24px;
+    height: 24px;
+  }
+
+  &[aria-checked='true'] {
+    background: #22c55e;
+
+    span {
+      transform: translateX(20px);
+    }
+  }
+}
+
+[data-ds-dark-theme] .androidContainer .switch:not([aria-checked='true']) {
+  background: #48484a;
+}

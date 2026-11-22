@@ -25,6 +25,9 @@ import {
   cancelSessionTitleTask,
   scheduleSessionTitleFallback,
 } from '../../elsewhere/title.js'
+import { getSearchToolsRuntimeConfig } from '../../elsewhere/search/config.js'
+import { buildActiveClientTools } from '../../elsewhere/tools/builtin.js'
+import { runClientToolLoop } from '../../elsewhere/tools/loop.js'
 import {
   activateBranch,
   appendBranch,
@@ -334,7 +337,7 @@ const createReply = (): AssistantMessage => {
     createdAt: Date.now(),
     model: chatConfig.model || DEFAULT_CHAT_MODEL,
     thinking: !customEndpoint && thinking,
-    search: !customEndpoint && search,
+    search,
     prefix: !customEndpoint && chatConfig.format === 'messages',
     status: 'pending',
     blocks: [],
@@ -1370,7 +1373,6 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         ...initial,
         model: chatConfig.model || DEFAULT_CHAT_MODEL,
         thinking: false,
-        search: false,
         prefix: false,
       }
     : initial
@@ -1519,6 +1521,15 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           Math.min(minOutputReserve, maxOutputTokens),
           window
         )
+        const searchToolsConfig = getSearchToolsRuntimeConfig(apiKey)
+        const useExternalTools = custom || searchToolsConfig.useExternalOnOfficial
+        const activeClientTools = useExternalTools
+          ? buildActiveClientTools({
+              searchEnabled: Boolean(initial.search),
+              questionText: activeQuestion.content,
+              config: searchToolsConfig,
+            })
+          : []
         const body: CreateMessageRequest = {
           model: requestModel,
           max_tokens: requestMaxOutput,
@@ -1526,8 +1537,58 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           messages,
           thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
           safety_check: SAFETY_CHECK,
-          tools: serverTools(initial.search ?? false),
+          ...(useExternalTools
+            ? activeClientTools.length > 0
+              ? {
+                  clientTools: activeClientTools.map(({ name, description, inputSchema }) => ({
+                    name,
+                    description,
+                    inputSchema,
+                  })),
+                }
+              : {}
+            : { tools: serverTools(initial.search ?? false) }),
           ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
+        }
+        if (useExternalTools && activeClientTools.length > 0) {
+          reply = { ...reply, prefix: false }
+          const loopResult = await runClientToolLoop({
+            baseBody: body,
+            tools: activeClientTools,
+            toolContext: { signal, config: searchToolsConfig },
+            initialReply: reply,
+            streamStep: (stepBody, stepSignal) =>
+              streamChatMessage(chatConfig, apiKey, stepBody, stepSignal),
+            onReplyUpdate: (nextReply, immediate) => {
+              reply = nextReply
+              if (immediate || document.visibilityState === 'hidden') {
+                flush()
+              } else {
+                frame ||= requestAnimationFrame(flush)
+              }
+            },
+            onContentReceived: () => {
+              receivedContent = true
+            },
+            onTitle: (title) => {
+              if (
+                titleRequests.has(controller) &&
+                !controller.signal.aborted &&
+                !get().importingHistory
+              ) {
+                cancelSessionTitleTask(sessionId)
+                updateSession(sessionId, (session) =>
+                  session.title ? session : { ...session, title }
+                )
+                titleRequests.delete(controller)
+              }
+            },
+            signal,
+          })
+          reply = loopResult.reply
+          receivedContent ||= loopResult.receivedContent
+          reply = settleReply(reply, 'done', Date.now())
+          break
         }
         const events = streamChatMessage(chatConfig, apiKey, body, signal)
         const blockIndexes = new Map<number, number>()
