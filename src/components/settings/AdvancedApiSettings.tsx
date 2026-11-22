@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { setTitleModel, useElsewherePrefs } from '../../elsewhere/preferences.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import { useTranslate, type TranslationKey } from '../../i18n/index.js'
 import {
   CHAT_API_FORMATS,
@@ -42,11 +44,14 @@ export const AdvancedApiDialog = ({ onClose }: { onClose: () => void }) => {
 
 export const AdvancedApiSettings = ({ onSave }: { onSave: () => void }) => {
   const t = useTranslate()
+  const zh = useIsZh()
   const [saved] = useState(() => useSettings.getState().chatConfig)
+  const [savedTitleModel] = useState(() => useElsewherePrefs.getState().titleModel)
   const [draft, setDraft] = useState(() => ({
     ...saved,
     endpoint: chatBaseUrl(saved.endpoint, saved.format) ?? '',
   }))
+  const [titleModel, setTitleModelDraft] = useState(savedTitleModel)
   const [error, setError] = useState<TranslationKey>()
   const customEndpoint = draft.endpoint.trim()
   const format = draft.format
@@ -64,6 +69,7 @@ export const AdvancedApiSettings = ({ onSave }: { onSave: () => void }) => {
       apiKey: endpoint ? draft.apiKey.trim() : '',
     }
     if (setChatConfig(config)) {
+      setTitleModel(titleModel)
       onSave()
     } else {
       setError('advancedSaveFailed')
@@ -71,6 +77,7 @@ export const AdvancedApiSettings = ({ onSave }: { onSave: () => void }) => {
   }
   const reset = () => {
     if (setChatConfig(DEFAULT_CHAT_CONFIG)) {
+      setTitleModel('')
       onSave()
     } else {
       setError('advancedSaveFailed')
@@ -153,6 +160,19 @@ export const AdvancedApiSettings = ({ onSave }: { onSave: () => void }) => {
           <p>{t('advancedProviderHint')}</p>
         </>
       ) : null}
+      <label>
+        {zh ? '标题生成模型（可选）' : 'Title generation model (optional)'}
+        <input
+          value={titleModel}
+          placeholder={zh ? '留空默认跟随当前对话模型' : 'Follow current chat model if blank'}
+          autoCapitalize="off"
+          spellCheck={false}
+          onChange={(event) => {
+            setTitleModelDraft(event.target.value)
+            setError(undefined)
+          }}
+        />
+      </label>
       {error ? <p role="alert">{t(error)}</p> : null}
       <div className={styles.actions}>
         <Button variant="outlined" onClick={reset}>

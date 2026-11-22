@@ -21,6 +21,11 @@ import { MANY_IMAGES_COUNT, MANY_IMAGES_MAX_EDGE, MAX_IMAGE_EDGE } from '../imag
 import { setPinnedSessions, useSettings } from '../settings.js'
 import { notifyOfficialReplyFinished } from '../../elsewhere/balanceStore.js'
 import {
+  cancelAllTitleTasks,
+  cancelSessionTitleTask,
+  scheduleSessionTitleFallback,
+} from '../../elsewhere/title.js'
+import {
   activateBranch,
   appendBranch,
   getVisibleMessages,
@@ -61,6 +66,7 @@ import {
   applyEvent,
   canContinueReply,
   getContextRounds,
+  getReplyText,
   settleReply,
   toRequestMessages,
 } from './reply.js'
@@ -494,6 +500,7 @@ export const replaceHistory = async (
     const { summaries, pinnedIds } = await write(staging.importId)
     onCommit?.()
     set({ importingHistory: true })
+    cancelAllTitleTasks()
     for (const controller of Object.values(get().streaming)) {
       controller.abort()
     }
@@ -558,6 +565,7 @@ export const mergeHistory = async (
     const { pinnedIds } = await write(staging.importId)
     onCommit?.()
     set({ importingHistory: true })
+    cancelAllTitleTasks()
     for (const controller of Object.values(get().streaming)) {
       controller.abort()
     }
@@ -685,25 +693,49 @@ export const clearPendingJump = (nonce?: number) => {
   )
 }
 
+const writeSessionTitle = (id: string, title: string, reportError = true) => {
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, title }))
+    persist(id)
+    return
+  }
+  set((state) => ({
+    sessions: state.sessions.map((session) =>
+      session.id === id ? { ...session, title } : session
+    ),
+  }))
+  const save = db.renameSession(id, title)
+  void (reportError ? save.catch(db.reportStorageError('rename session')) : save.catch(() => {}))
+}
+
+const applyGeneratedTitle = (id: string, title: string, epoch: number) => {
+  if (!title || epoch !== historyEpoch || get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  const cached = getSession(id)
+  if (cached) {
+    if (cached.title) {
+      return
+    }
+  } else {
+    const summary = get().sessions.find((session) => session.id === id)
+    if (!summary || summary.title) {
+      return
+    }
+  }
+  writeSessionTitle(id, title, false)
+}
+
 export const renameSession = (id: string, title: string) => {
   if (get().importingHistory || deletingSessions.has(id)) {
     return
   }
+  cancelSessionTitleTask(id)
   const controller = getStreamController(id)
   if (controller) {
     titleRequests.delete(controller)
   }
-  if (getSession(id)) {
-    updateSession(id, (session) => ({ ...session, title }))
-    persist(id)
-  } else {
-    set((state) => ({
-      sessions: state.sessions.map((session) =>
-        session.id === id ? { ...session, title } : session
-      ),
-    }))
-    void db.renameSession(id, title).catch(db.reportStorageError('rename session'))
-  }
+  writeSessionTitle(id, title, true)
 }
 
 /**
@@ -723,6 +755,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
   const epoch = historyEpoch
   deletingSessions.add(id)
   try {
+    cancelSessionTitleTask(id)
     getStreamController(id)?.abort()
     // 等本会话的流收尾，避免删除之后又被收尾保存写回来。
     await waitForIdle(id)
@@ -882,6 +915,9 @@ export const regenerateReply = (sessionId: string, messageId?: string) => {
     updatedAt: Date.now(),
   }))
   persist(sessionId)
+  if (!getSession(sessionId)?.title) {
+    cancelSessionTitleTask(sessionId)
+  }
   void streamReply(sessionId, reply, { history, question })
 }
 
@@ -925,6 +961,9 @@ export const editMessage = (
   appendPendingFiles(sessionId, files)
   persist(sessionId)
   clearSentEdit(sessionId, messageId, Boolean(useSettings.getState().chatConfig.endpoint))
+  if (!getSession(sessionId)?.title) {
+    cancelSessionTitleTask(sessionId)
+  }
   void streamReply(sessionId, reply, { history: path.slice(0, index), question })
   return true
 }
@@ -1503,6 +1542,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             !get().importingHistory
           ) {
             const title = event.delta.title.trim()
+            cancelSessionTitleTask(sessionId)
             updateSession(sessionId, (session) => (session.title ? session : { ...session, title }))
             titleRequests.delete(controller)
           }
@@ -1514,20 +1554,6 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           }
         }
         reply = settleReply(reply, 'done', Date.now())
-        if (
-          (custom || chatConfig.format !== 'messages') &&
-          titleRequests.has(controller) &&
-          !get().importingHistory
-        ) {
-          const title =
-            request.question.content.trim().split(/\r?\n/, 1)[0] || request.question.files[0]?.name
-          if (title) {
-            const preview = Array.from(title).slice(0, 64).join('')
-            updateSession(sessionId, (session) =>
-              session.title ? session : { ...session, title: preview }
-            )
-          }
-        }
         break
       } catch (error) {
         if (controller.signal.aborted) {
@@ -1622,6 +1648,17 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       }
     }
   } finally {
+    const activeSession = getSession(sessionId)
+    const needsClientTitle =
+      titleRequests.has(controller) &&
+      !controller.signal.aborted &&
+      !get().importingHistory &&
+      !deletingSessions.has(sessionId) &&
+      reply.status === 'done' &&
+      reply.stopReason !== 'refusal' &&
+      Boolean(getReplyText(reply).trim()) &&
+      !(request.question.files.length === 0 && SIMPLE_ARITHMETIC.test(request.question.content)) &&
+      Boolean(activeSession && !activeSession.title)
     titleRequests.delete(controller)
     streamFlushes.delete(sessionId)
     cancelAnimationFrame(frame)
@@ -1634,6 +1671,19 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     persist(sessionId)
     if (!custom && reply.status === 'done') {
       notifyOfficialReplyFinished()
+    }
+    if (needsClientTitle) {
+      const epoch = historyEpoch
+      scheduleSessionTitleFallback({
+        sessionId,
+        question: request.question,
+        reply,
+        chatConfig,
+        apiKey,
+        shouldCommit: () =>
+          epoch === historyEpoch && !get().importingHistory && !deletingSessions.has(sessionId),
+        commitTitle: (title) => applyGeneratedTitle(sessionId, title, epoch),
+      })
     }
   }
 }
