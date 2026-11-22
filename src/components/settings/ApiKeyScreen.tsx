@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import whale from '../../assets/deepseek-whale.svg'
+import whale from '../../assets/elsewhere-whale.svg'
 import { useTranslate } from '../../i18n/index.js'
 import { AdvancedApiDialog } from './AdvancedApiSettings.js'
 import advancedStyles from './AdvancedApiSettings.module.css'

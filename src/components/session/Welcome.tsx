@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useIsMobile } from '../../app/viewport.js'
 import { android } from '../../app/android.js'
-import whale from '../../assets/deepseek-whale.svg'
+import whale from '../../assets/elsewhere-whale.svg'
 import {
   useAndroidColdStartGreeting,
   useAndroidWelcomeMessages,

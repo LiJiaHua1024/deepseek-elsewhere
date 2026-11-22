@@ -92,6 +92,7 @@ export const createConfig = ({
     // 经典 defer 脚本支持 file:// 页面的资源加载
     new rspack.HtmlRspackPlugin({
       template: './src/index.html',
+      favicon: './src/assets/elsewhere-favicon.svg',
       scriptLoading: 'defer',
       meta: { 'application-version': version },
     }),
