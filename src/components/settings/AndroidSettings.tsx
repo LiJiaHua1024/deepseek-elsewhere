@@ -54,7 +54,7 @@ const appVersion = document.querySelector<HTMLMetaElement>(
 const policiesUrl = 'https://cdn.deepseek.com/policies'
 const chinesePoliciesUrl = `${policiesUrl}/zh-CN`
 const faqUrl = 'https://static.deepseek.com/faq/index.html'
-const releasesUrl = 'https://github.com/LiJiaHua1024/deepseek-app-replica/releases/latest'
+const releasesUrl = 'https://github.com/LiJiaHua1024/deepseek-elsewhere/releases/latest'
 
 const updateMessages = {
   current: 'updateCurrent',

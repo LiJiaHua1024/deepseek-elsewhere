@@ -1,7 +1,7 @@
 {
-  "name": "deepseek-app-replica",
-  "version": "0.8.8",
-  "description": "复刻 DeepSeek 官方手机端交互与视觉体验的 Android 客户端。",
+  "name": "elsewhere",
+  "version": "0.1.0",
+  "description": "去别的地方玩，不要耽误 AGI 训练。纯粹、顺手的 AI 聊天客户端。",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",

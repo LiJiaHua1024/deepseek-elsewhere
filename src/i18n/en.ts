@@ -79,7 +79,7 @@ export const en = {
   updateInstallerUnavailable:
     'The system installer couldn’t open. You can download the update from GitHub and install it manually.',
   updateOpenReleases: 'Open GitHub releases',
-  appName: 'DeepSeek Replica',
+  appName: 'Elsewhere',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',

@@ -17,18 +17,18 @@ android {
     }
 
     defaultConfig {
-        applicationId = 'io.github.lijiahua1024.dsreplica'
+        applicationId = 'io.github.lijiahua1024.elsewhere'
         minSdk = 29
         targetSdk = 36
-        versionCode = 27
-        versionName = '0.8.8'
+        versionCode = 1
+        versionName = '0.1.0'
     }
 
     signingConfigs {
         release {
             storeFile file('release.jks')
             storePassword = releaseSigning.getProperty('storePassword')
-            keyAlias 'dsreplica'
+            keyAlias releaseSigning.getProperty('keyAlias', 'elsewhere')
             keyPassword = releaseSigning.getProperty('keyPassword')
         }
     }

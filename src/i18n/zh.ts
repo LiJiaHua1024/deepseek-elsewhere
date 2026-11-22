@@ -76,7 +76,7 @@ export const zh = {
   updatePermissionDenied: '请允许此来源安装应用，然后重试',
   updateInstallerUnavailable: '系统未能打开安装界面，可前往 GitHub 下载后手动安装',
   updateOpenReleases: '前往 GitHub 发布页',
-  appName: 'DeepSeek Replica',
+  appName: 'Elsewhere',
   deleteSessionModalContentTitle: '永久删除对话',
   deleteSessionWithFilesDescription: '删除后，该对话及其中上传的文件将不可恢复。确认删除吗？',
   cancel: '取消',
