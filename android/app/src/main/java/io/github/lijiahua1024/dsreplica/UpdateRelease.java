@@ -60,7 +60,7 @@ record UpdateRelease(String version, URL url, long size, String digest) {
         }
         String version = tag.substring(1);
         if (compareVersions(version, installedVersion) <= 0) return null;
-        String name = "deepseek-elsewhere-" + tag + ".apk";
+        String name = "elsewhere-" + tag + ".apk";
         String expectedUrl = DOWNLOAD + tag + "/" + name;
         JSONArray assets = release.getJSONArray("assets");
         for (int i = 0; i < assets.length(); i++) {
