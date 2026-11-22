@@ -2,7 +2,11 @@
 
 # Elsewhere
 
-去别的地方玩，不要耽误 AGI 训练。
+去「**别的地方**」玩，不要耽误 AGI 训练
+
+<p>
+  <img src="docs/assets/go-play-elsewhere.jpg" alt="去别的地方玩，不要耽误 AGI 训练" width="420" />
+</p>
 
 [![Release](https://img.shields.io/github/v/release/LiJiaHua1024/deepseek-elsewhere?style=flat-square&color=2563eb&label=Release)](https://github.com/LiJiaHua1024/deepseek-elsewhere/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/LiJiaHua1024/deepseek-elsewhere)
