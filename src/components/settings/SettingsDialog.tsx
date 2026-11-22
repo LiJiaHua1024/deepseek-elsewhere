@@ -41,6 +41,8 @@ import { AdvancedApiDialog } from './AdvancedApiSettings.js'
 import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
+import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
 import styles from './Settings.module.css'
 
 /**
@@ -112,12 +114,14 @@ const SettingsContent = () => {
               <LocaleSetting />
               <TtsVoiceSetting />
               <LocationSetting />
+              <UsageToggleSetting />
             </>
           ) : section === 'account' ? (
             <ProfileEditor />
           ) : (
             <>
               <ApiKeyField editor={apiKeyEditor} />
+              <BalanceCard variant="web" />
               <SettingCell
                 label={t('advancedSettings')}
                 description={model || undefined}

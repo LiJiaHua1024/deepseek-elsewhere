@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { android } from '../../app/android.js'
+import { getActiveSummaryCheckpoint } from '../../elsewhere/contextStats.js'
+import { SummaryDivider } from '../../elsewhere/SummaryDivider.js'
 import { useIsMobile } from '../../app/viewport.js'
 import {
   buildMessageVersions,
@@ -83,6 +85,10 @@ export const MessageList = ({
   const editingMessageIdRef = useRef(editingMessageId)
   editingMessageIdRef.current = editingMessageId
   const messages = useMemo(() => getVisibleMessages(session), [session])
+  const activeCheckpoint = useMemo(
+    () => getActiveSummaryCheckpoint(session, messages),
+    [session, messages]
+  )
   const pendingJumpIndex = pendingJump
     ? messages.findIndex((message) => message.id === pendingJump.messageId)
     : -1
@@ -673,17 +679,24 @@ export const MessageList = ({
                     onSelectVersion={selectVersion}
                   />
                 ) : (
-                  <AssistantMessage
-                    key={message.id}
-                    sessionId={session.id}
-                    message={message}
-                    isLast={index === lastIndex}
-                    streaming={streaming && index === lastIndex}
-                    busy={streaming}
-                    searchHighlightNonce={highlightNonce}
-                    versions={versions.get(message.id) ?? EMPTY_VERSIONS}
-                    onSelectVersion={selectVersion}
-                  />
+                  <Fragment key={message.id}>
+                    <AssistantMessage
+                      sessionId={session.id}
+                      message={message}
+                      isLast={index === lastIndex}
+                      streaming={streaming && index === lastIndex}
+                      busy={streaming}
+                      searchHighlightNonce={highlightNonce}
+                      versions={versions.get(message.id) ?? EMPTY_VERSIONS}
+                      onSelectVersion={selectVersion}
+                    />
+                    {activeCheckpoint?.replyId === message.id ? (
+                      <SummaryDivider
+                        sessionId={session.id}
+                        summarizedRounds={activeCheckpoint.summarizedRounds}
+                      />
+                    ) : null}
+                  </Fragment>
                 )
               })}
             </div>

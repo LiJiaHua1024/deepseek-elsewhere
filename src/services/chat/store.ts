@@ -19,6 +19,7 @@ import {
 } from '../attachments.js'
 import { MANY_IMAGES_COUNT, MANY_IMAGES_MAX_EDGE, MAX_IMAGE_EDGE } from '../imageUpload.js'
 import { setPinnedSessions, useSettings } from '../settings.js'
+import { notifyOfficialReplyFinished } from '../../elsewhere/balanceStore.js'
 import {
   activateBranch,
   appendBranch,
@@ -1631,5 +1632,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+    if (!custom && reply.status === 'done') {
+      notifyOfficialReplyFinished()
+    }
   }
 }

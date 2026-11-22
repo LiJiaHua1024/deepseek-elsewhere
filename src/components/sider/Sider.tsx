@@ -25,6 +25,7 @@ import { AndroidContentSearch } from './AndroidContentSearch.js'
 import { SessionActionDialog } from './SessionActionDialog.js'
 import { SessionItem } from './SessionItem.js'
 import { setInert } from '../../utils/inert.js'
+import { SiderBalance } from '../../elsewhere/SiderBalance.js'
 import styles from './Sider.module.css'
 
 const ROW_OVERSCAN = 10
@@ -332,7 +333,12 @@ export const Sider = memo(function Sider({ mobile = false }: { mobile?: boolean 
             }}
           >
             <ProfileAvatar src={profile.avatar} />
-            <span className={styles.settingsLabel}>{username}</span>
+            <span className={styles.settingsLabel}>
+              <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {username}
+              </span>
+              <SiderBalance active={!mobile || drawerOpen} />
+            </span>
             {androidDrawer ? <IconEllipsisOutline16 /> : null}
           </button>
         )}

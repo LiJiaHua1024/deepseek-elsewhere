@@ -1,0 +1,84 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 7px 10px 7px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 14px;
+  background-color: var(--dsw-static-amber-100);
+  color: var(--dsw-static-amber-600);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+[data-ds-dark-theme] .banner {
+  border-color: rgba(247, 173, 49, 0.25);
+  background-color: var(--dsw-static-amber-900);
+  color: var(--dsw-static-amber-400);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topUp {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: rgba(221, 134, 41, 0.14);
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: rgba(221, 134, 41, 0.22);
+  }
+}
+
+[data-ds-dark-theme] .topUp {
+  background-color: rgba(247, 173, 49, 0.16);
+
+  &:hover {
+    background-color: rgba(247, 173, 49, 0.26);
+  }
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.78;
+
+  &:hover {
+    opacity: 1;
+    background-color: rgba(221, 134, 41, 0.12);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}

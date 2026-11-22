@@ -24,6 +24,7 @@ type AndroidBridge = {
   writeChatConfig: (value: string | null) => boolean
   beginChatRequest: (endpoint: string, format: string, body: string) => string | null
   cancelChatRequest: (id: string) => void
+  requestOfficialBalance?: (requestId: string) => void
   readAccountProfile: () => string | null
   writeAccountProfile: (value: string | null) => boolean
   setDarkBars: (dark: boolean) => void

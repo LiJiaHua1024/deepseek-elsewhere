@@ -46,6 +46,8 @@ import { createSettingsPageMotion } from './androidSettingsMotion.js'
 import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog } from './settingsDialogState.js'
+import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { setShowUsageInChat, useElsewherePrefs } from '../../elsewhere/preferences.js'
 import styles from './AndroidSettings.module.css'
 
 const appVersion = document.querySelector<HTMLMetaElement>(
@@ -347,6 +349,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const exiting = useRef(false)
   const sessions = useChatStore((state) => state.sessions.length)
   const editor = useApiKeyEditor()
+  const showUsageInChat = useElsewherePrefs((state) => state.showUsageInChat)
   const updateBusy = update.phase === 'checking' || update.phase === 'downloading'
 
   useEffect(() => {
@@ -387,6 +390,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const appearance = tr('外观', 'Appearance')
   const voice = tr('朗读音色', 'Read-aloud voice')
   const autoFold = tr('思考内容自动折叠', 'Collapse thinking automatically')
+  const showUsageLabel = tr('对话内显示轻量用量', 'Show compact usage in chat')
   const follow = tr('跟随系统', 'Follow system')
   const logout = tr('退出登录', 'Sign out')
   const clear = tr('删除所有历史对话', 'Delete all conversations')
@@ -731,6 +735,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                   <ApiKeyConfirm editor={editor} />
                 </div>
               ) : null}
+              <BalanceCard variant="android" />
               <Row
                 label={labels.advanced}
                 value={chatConfig.model}
@@ -893,6 +898,24 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
               {tr(
                 '开启后，思考结束后将自动折叠思考内容',
                 'Collapse thinking once an answer is ready.'
+              )}
+            </p>
+            <Group>
+              <Row
+                label={showUsageLabel}
+                control={
+                  <Switch
+                    label={showUsageLabel}
+                    checked={showUsageInChat}
+                    toggle={() => setShowUsageInChat(!showUsageInChat)}
+                  />
+                }
+              />
+            </Group>
+            <p className={styles.caption}>
+              {tr(
+                '关闭后聊天主界面将恢复与官方版完全一致',
+                'Hide the context ring and summary divider in chat.'
               )}
             </p>
           </>

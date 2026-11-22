@@ -49,6 +49,8 @@ import { AndroidImageViewer } from '../files/AndroidImageViewer.js'
 import { AndroidVoiceOverlay } from './AndroidVoiceOverlay.js'
 import { useHoldToTalk } from './useHoldToTalk.js'
 import { useTranslate } from '../../i18n/index.js'
+import { ContextRing } from '../../elsewhere/ContextRing.js'
+import { LowBalanceBanner } from '../../elsewhere/LowBalanceBanner.js'
 import styles from './ChatInput.module.css'
 
 const useVoiceMode = create<{ enabled: boolean }>(() => ({ enabled: false }))
@@ -404,6 +406,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
 
   return (
     <div className={styles.composer} data-photo-suggestions={photoSuggestions ? '' : undefined}>
+      <LowBalanceBanner sessionId={sessionId} />
       <div
         data-drawer-gesture-ignore=""
         data-editing={editingHere ? 'true' : undefined}
@@ -598,6 +601,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             )}
           </div>
           <div className={styles.right}>
+            <ContextRing sessionId={sessionId} />
             {android ? (
               <>
                 <IconButton

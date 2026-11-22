@@ -41,6 +41,7 @@ import {
 } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useAndroidDrawerGesture } from '../components/sider/useAndroidDrawerGesture.js'
+import { SessionStatusSheet } from '../elsewhere/SessionStatusSheet.js'
 import styles from './App.module.css'
 
 const SIDE_DRAWER_WIDTH = 326
@@ -353,6 +354,7 @@ export const App = () => {
         <SearchPanel />
       </div>
       {android ? <AndroidSettings chatFrame={frameRef} /> : <SettingsDialog />}
+      <SessionStatusSheet />
       <Toast />
     </>
   )

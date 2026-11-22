@@ -33,8 +33,13 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private static final String ASSET_HOST = "appassets.androidplatform.net";
@@ -74,6 +81,7 @@ public final class MainActivity extends Activity {
     private final InAppBackCallback inAppBack = new InAppBackCallback(this, this::handleBack,
         this::reportBackPreview);
     private final ExecutorService photoExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService balanceExecutor = Executors.newSingleThreadExecutor();
     private AccessibilityManager accessibility;
     private final AccessibilityManager.AccessibilityStateChangeListener accessibilityState =
         enabled -> {
@@ -461,6 +469,7 @@ public final class MainActivity extends Activity {
             accessibility.removeAccessibilityStateChangeListener(accessibilityState);
         }
         photoExecutor.shutdownNow();
+        balanceExecutor.shutdownNow();
         updater.close();
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         recorder.finish(false);
@@ -551,6 +560,56 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public void cancelChatRequest(String id) { if (id != null) customChat.cancel(id); }
+
+        @JavascriptInterface
+        public void requestOfficialBalance(String requestId) {
+            if (requestId == null || requestId.isEmpty()) return;
+            String apiKey = keys.read();
+            if (apiKey == null || apiKey.isEmpty()) {
+                emitBalanceResult(requestId, false, 0, "");
+                return;
+            }
+            balanceExecutor.execute(() -> {
+                HttpURLConnection connection = null;
+                try {
+                    connection = (HttpURLConnection) new URL("https://api.deepseek.com/user/balance")
+                        .openConnection();
+                    connection.setInstanceFollowRedirects(false);
+                    connection.setConnectTimeout(10_000);
+                    connection.setReadTimeout(15_000);
+                    connection.setRequestMethod("GET");
+                    connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+                    connection.setRequestProperty("Accept", "application/json");
+                    int status = connection.getResponseCode();
+                    if (status >= 300 && status < 400) {
+                        emitBalanceResult(requestId, false, status, "");
+                        return;
+                    }
+                    String body = "";
+                    try (InputStream input = status >= 400
+                            ? connection.getErrorStream()
+                            : connection.getInputStream()) {
+                        if (input != null) {
+                            ByteArrayOutputStream output = new ByteArrayOutputStream();
+                            byte[] buffer = new byte[4096];
+                            int total = 0;
+                            int count;
+                            while (total < 65_536
+                                    && (count = input.read(buffer, 0, Math.min(buffer.length, 65_536 - total))) != -1) {
+                                output.write(buffer, 0, count);
+                                total += count;
+                            }
+                            body = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                        }
+                    }
+                    emitBalanceResult(requestId, status >= 200 && status < 300, status, body);
+                } catch (IOException | RuntimeException ignored) {
+                    emitBalanceResult(requestId, false, 0, "");
+                } finally {
+                    if (connection != null) connection.disconnect();
+                }
+            });
+        }
 
         @JavascriptInterface
         public String readAccountProfile() { return profilePreferences.getString(PROFILE_KEY, null); }
@@ -676,6 +735,24 @@ public final class MainActivity extends Activity {
                 }
                 webView.setSystemGestureExclusionRects(rects);
             });
+        }
+    }
+
+    private void emitBalanceResult(String id, boolean ok, int status, String body) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("id", id);
+            payload.put("ok", ok);
+            payload.put("status", status);
+            payload.put("body", body);
+            String json = payload.toString();
+            runOnUiThread(() -> {
+                if (isDestroyed() || webView == null) return;
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('android-balance',{detail:" + json + "}))",
+                    null);
+            });
+        } catch (JSONException ignored) {
         }
     }
 }

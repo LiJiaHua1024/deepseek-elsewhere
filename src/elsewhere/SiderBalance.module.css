@@ -1,0 +1,18 @@
+.balance {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.low {
+  color: var(--dsw-static-amber-600);
+}
+
+[data-ds-dark-theme] .low {
+  color: var(--dsw-static-amber-400);
+}
