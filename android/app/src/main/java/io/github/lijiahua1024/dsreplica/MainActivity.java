@@ -65,6 +65,8 @@ public final class MainActivity extends Activity {
     private ApiKeyStore chatConfig;
     private final CustomChatTransport customChat = new CustomChatTransport();
     private final NativeHttpTransport nativeHttp = new NativeHttpTransport();
+    private final NativeHttpStreamTransport nativeHttpStream = new NativeHttpStreamTransport();
+    private PyodideRuntimeStore pyodideStore;
     private SharedPreferences profilePreferences;
     private ValueCallback<Uri[]> fileCallback;
     private boolean choosingPhotos;
@@ -94,6 +96,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         keys = new ApiKeyStore(this);
         chatConfig = new ApiKeyStore(this, "custom-chat");
+        pyodideStore = new PyodideRuntimeStore(this);
         profilePreferences = getSharedPreferences("account_profile", MODE_PRIVATE);
         recentPhotos = new RecentPhotos(getContentResolver());
         historyExport = new FileExport(getContentResolver());
@@ -235,6 +238,10 @@ public final class MainActivity extends Activity {
                     path.startsWith("/thumbnail/"));
                 if (photo != null) return photo;
             }
+            if (path != null && path.startsWith("/pyodide/")) {
+                WebResourceResponse pyodideAsset = pyodideStore.openAsset(path);
+                if (pyodideAsset != null) return pyodideAsset;
+            }
             if ("/index.html".equals(path) || (path != null && path.startsWith("/static/")
                     && !path.contains("/../"))) {
                 String name = path.substring(1);
@@ -242,7 +249,8 @@ public final class MainActivity extends Activity {
                 String type = "js".equals(extension) ? "text/javascript"
                     : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
                 Map<String, String> headers = Map.of("Content-Security-Policy",
-                    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                    "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; "
+                    + "style-src 'self' 'unsafe-inline'; "
                     + "img-src 'self' https: data: blob:; font-src 'self' data:; "
                     + "media-src 'self' blob:; connect-src 'self' https://api.deepseek.com; "
                     + "frame-src 'none'; base-uri 'none'; form-action 'none';");
@@ -466,6 +474,8 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         customChat.close();
         nativeHttp.close();
+        nativeHttpStream.close();
+        if (pyodideStore != null) pyodideStore.close();
         inAppBack.setEnabled(false);
         if (accessibility != null) {
             accessibility.removeAccessibilityStateChangeListener(accessibilityState);
@@ -577,6 +587,82 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void cancelHttpRequest(String requestId) {
             if (requestId != null) nativeHttp.cancel(requestId);
+        }
+
+        @JavascriptInterface
+        public boolean beginHttpStream(String streamId, String payload) {
+            return nativeHttpStream.begin(streamId, payload, json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-http-stream',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public void cancelHttpStream(String streamId) {
+            if (streamId != null) nativeHttpStream.cancel(streamId);
+        }
+
+        @JavascriptInterface
+        public String getPyodideStatus() {
+            return pyodideStore != null ? pyodideStore.getStatusJson() : "{}";
+        }
+
+        @JavascriptInterface
+        public void beginPyodideDownload() {
+            if (pyodideStore == null) return;
+            pyodideStore.beginDownload(json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-pyodide-status',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public void cancelPyodideDownload() {
+            if (pyodideStore == null) return;
+            pyodideStore.cancelDownload(json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-pyodide-status',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public boolean clearPyodideCache() {
+            if (pyodideStore == null) return false;
+            return pyodideStore.clearCache(json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-pyodide-status',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public boolean ensurePyodideFiles(String requestId, String filesJsonArray) {
+            if (pyodideStore == null) return false;
+            return pyodideStore.ensureFiles(requestId, filesJsonArray, json ->
+                runOnUiThread(() -> {
+                    if (isDestroyed() || webView == null) return;
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('android-pyodide-files',{detail:"
+                        + json + "}))", null);
+                }));
+        }
+
+        @JavascriptInterface
+        public void cancelPyodideFiles(String requestId) {
+            if (pyodideStore != null && requestId != null) {
+                pyodideStore.cancelEnsureFiles(requestId);
+            }
         }
 
         @JavascriptInterface

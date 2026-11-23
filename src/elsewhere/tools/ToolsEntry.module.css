@@ -1,0 +1,46 @@
+.androidAddWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.androidDot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #4d6bfe;
+  box-shadow: 0 0 0 1.5px var(--dsw-alias-bg-layer-2, #ffffff);
+  pointer-events: none;
+}
+
+.webToolWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.webToolActive {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.webBadge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background-color: #4d6bfe;
+  color: #ffffff;
+  font-size: 9.5px;
+  line-height: 14px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}

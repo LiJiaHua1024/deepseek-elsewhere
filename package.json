@@ -1,6 +1,6 @@
 {
   "name": "elsewhere",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "去别的地方玩，不要耽误 AGI 训练。纯粹、顺手的 AI 聊天客户端。",
   "license": "GPL-3.0-or-later",
   "private": true,

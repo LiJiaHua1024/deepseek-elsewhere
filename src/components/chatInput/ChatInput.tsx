@@ -53,7 +53,22 @@ import { ContextRing } from '../../elsewhere/ContextRing.js'
 import { LowBalanceBanner } from '../../elsewhere/LowBalanceBanner.js'
 import { isSearchEngineReady, useSearchToolsConfig } from '../../elsewhere/search/config.js'
 import { useIsZh } from '../../elsewhere/text.js'
+import { ToolConfirmationBar } from '../../elsewhere/tools/ToolConfirmationBar.js'
+import { openToolsDrawer, useActiveToolsCount } from '../../elsewhere/tools/toolsDrawerState.js'
+import toolsEntryStyles from '../../elsewhere/tools/ToolsEntry.module.css'
 import styles from './ChatInput.module.css'
+
+const DesktopToolsIcon16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M9.9 2.4a3.4 3.4 0 0 0-3.2 4.55L2.45 11.2a1.25 1.25 0 0 0 1.77 1.77l4.25-4.25a3.4 3.4 0 0 0 4.55-3.2 3.3 3.3 0 0 0-.32-1.42l-1.92 1.92-1.4-1.4 1.92-1.92A3.3 3.3 0 0 0 9.9 2.4Z"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
 
 const useVoiceMode = create<{ enabled: boolean }>(() => ({ enabled: false }))
 
@@ -65,6 +80,8 @@ export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: str
 
 const Input = ({ sessionId }: { sessionId: string | null }) => {
   const t = useTranslate()
+  const zhTools = useIsZh()
+  const activeToolsCount = useActiveToolsCount()
   const draft = useDrafts((state) => state.drafts.get(sessionId) ?? EMPTY_DRAFT)
   const editing = useDrafts((state) =>
     android && sessionId !== null && state.editing?.sessionId === sessionId ? state.editing : null
@@ -435,6 +452,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   return (
     <div className={styles.composer} data-photo-suggestions={photoSuggestions ? '' : undefined}>
       <LowBalanceBanner sessionId={sessionId} />
+      <ToolConfirmationBar sessionId={sessionId} />
       <div
         data-drawer-gesture-ignore=""
         data-editing={editingHere ? 'true' : undefined}
@@ -644,7 +662,14 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
                   size="xl"
                   tone="primary"
                   className={styles.androidToolButton}
-                  icon={<AndroidCircle icon={showAttachments ? 'close' : 'add'} />}
+                  icon={
+                    <span className={toolsEntryStyles.androidAddWrap}>
+                      <AndroidCircle icon={showAttachments ? 'close' : 'add'} />
+                      {activeToolsCount > 0 && !showAttachments ? (
+                        <span className={toolsEntryStyles.androidDot} aria-hidden="true" />
+                      ) : null}
+                    </span>
+                  }
                   aria-label={t(showAttachments ? 'close' : 'uploadFile')}
                   aria-expanded={showAttachments}
                   disabled={importingHistory}
@@ -691,6 +716,22 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
                     }
                   }}
                 />
+                <span className={toolsEntryStyles.webToolWrap}>
+                  <IconButton
+                    size="m"
+                    tone="primary"
+                    className={
+                      activeToolsCount > 0 ? toolsEntryStyles.webToolActive : undefined
+                    }
+                    icon={<DesktopToolsIcon16 />}
+                    tooltip={zhTools ? '工具' : 'Tools'}
+                    disabled={importingHistory}
+                    onClick={() => openToolsDrawer()}
+                  />
+                  {activeToolsCount > 0 ? (
+                    <span className={toolsEntryStyles.webBadge}>{activeToolsCount}</span>
+                  ) : null}
+                </span>
                 <IconButton
                   size="m"
                   tone="primary"
@@ -748,6 +789,11 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         <>
           <AndroidAttachments
             open={showAttachments}
+            activeToolsCount={activeToolsCount}
+            onOpenTools={() => {
+              setShowAttachments(false)
+              openToolsDrawer()
+            }}
             selectedPhotos={
               new Map(
                 attachments.flatMap((item) =>

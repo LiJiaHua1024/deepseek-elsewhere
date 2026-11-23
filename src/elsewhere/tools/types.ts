@@ -24,10 +24,21 @@ export type SearchToolsRuntimeConfig = {
   useExternalOnOfficial: boolean
 }
 
+export type ToolFileAttachment = {
+  id: string
+  name: string
+  size: number
+  isImage: boolean
+  mimeType?: string
+}
+
 export type ToolExecutionContext = {
   signal: AbortSignal
   /** 本轮搜索/抓取所需的当前运行时配置 */
   config: SearchToolsRuntimeConfig
+  sessionId?: string
+  attachments?: readonly ToolFileAttachment[]
+  loadFile?: (id: string) => Promise<Blob | undefined>
 }
 
 export type ToolExecutionResult = {
@@ -38,26 +49,41 @@ export type ToolExecutionResult = {
   meta?:
     | { kind: 'search'; engine: SearchEngineId; queries: string[]; results: NormalizedSearchResult[] }
     | { kind: 'fetch'; url: string; title: string | null; truncated: boolean; charCount: number }
-    | { kind: 'generic'; summary?: string }
+    | { kind: 'python'; images?: string[]; truncated?: boolean }
+    | { kind: 'history'; query: string; count: number; truncated?: boolean }
+    | { kind: 'generic'; summary?: string; truncated?: boolean }
 }
 
 export type ClientToolDefinition = {
   name: string
+  /** 面向用户展示的原始工具名（如 MCP 工具未加前缀时的原始名称） */
+  displayName?: string
   description: string
   inputSchema: Record<string, unknown>
   source: ToolSource
+  serverId?: string
   serverName?: string
+  autoApprove?: boolean
   readOnly: boolean
   execute: (input: Record<string, unknown>, ctx: ToolExecutionContext) => Promise<ToolExecutionResult>
 }
 
-export type ClientToolCallStatus = 'running' | 'done' | 'error' | 'stopped' | 'aborted_loop'
+export type ClientToolCallStatus =
+  | 'awaiting_confirmation'
+  | 'running'
+  | 'done'
+  | 'error'
+  | 'denied'
+  | 'stopped'
+  | 'aborted_loop'
 
 export type ClientToolCallBlock = {
   type: 'client_tool_call'
   id: string
   name: string
+  displayName?: string
   source: ToolSource
+  serverId?: string
   serverName?: string
   input: Record<string, unknown>
   rawInput?: string

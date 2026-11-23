@@ -13,9 +13,16 @@ export const getClientToolsAreaTitle = (
   )
 
   let runningStep: ClientToolStep | undefined
+  let confirmingStep: ClientToolStep | undefined
   for (let i = toolSteps.length - 1; i >= 0; i--) {
-    if (toolSteps[i].block.status === 'running') {
+    const status = toolSteps[i].block.status
+    if (!confirmingStep && status === 'awaiting_confirmation') {
+      confirmingStep = toolSteps[i]
+    }
+    if (!runningStep && status === 'running') {
       runningStep = toolSteps[i]
+    }
+    if (confirmingStep && runningStep) {
       break
     }
   }
@@ -30,7 +37,11 @@ export const getClientToolsAreaTitle = (
     }
   }
 
-  if (streaming && (!hasResponse || Boolean(runningStep))) {
+  if (streaming && (!hasResponse || Boolean(runningStep) || Boolean(confirmingStep))) {
+    if (confirmingStep) {
+      const n = confirmingStep.stepNumber
+      return zh ? `等待确认工具调用 · 第 ${n} 步` : `Awaiting confirmation · Step ${n}`
+    }
     if (runningStep) {
       const n = runningStep.stepNumber
       if (runningStep.block.name === 'web_search') {
@@ -39,7 +50,14 @@ export const getClientToolsAreaTitle = (
       if (runningStep.block.name === 'web_fetch') {
         return zh ? `正在读取网页 · 第 ${n} 步` : `Reading page · Step ${n}`
       }
-      return zh ? `正在调用工具 · 第 ${n} 步` : `Running tool · Step ${n}`
+      if (runningStep.block.name === 'run_python') {
+        return zh ? `正在运行 Python · 第 ${n} 步` : `Running Python · Step ${n}`
+      }
+      if (runningStep.block.name === 'search_history') {
+        return zh ? `正在搜索历史对话 · 第 ${n} 步` : `Searching history · Step ${n}`
+      }
+      const label = runningStep.block.displayName || runningStep.block.name
+      return zh ? `正在调用 ${label} · 第 ${n} 步` : `Running ${label} · Step ${n}`
     }
     if (hasActiveThinking) {
       const n = toolSteps.length + 1
@@ -47,18 +65,28 @@ export const getClientToolsAreaTitle = (
     }
     if (toolSteps.length > 0) {
       const n = toolSteps[toolSteps.length - 1].stepNumber
-      return zh ? `正在检索 · 第 ${n} 步` : `Searching · Step ${n}`
+      return zh ? `正在处理 · 第 ${n} 步` : `Working · Step ${n}`
     }
-    return zh ? '正在检索' : 'Searching'
+    return zh ? '正在处理' : 'Working'
   }
 
   const stepCount = toolSteps.length
   const hasThinking = view.steps.some((step) => step.type === 'thinking')
+  const hasOnlySearchTools =
+    toolSteps.length > 0 &&
+    toolSteps.every(
+      (step) => step.block.name === 'web_search' || step.block.name === 'web_fetch'
+    )
 
   if (!streaming && !hasResponse) {
+    if (hasOnlySearchTools) {
+      return zh
+        ? `已停止检索（${stepCount} 步）`
+        : `Search stopped (${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+    }
     return zh
-      ? `已停止检索（${stepCount} 步）`
-      : `Search stopped (${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+      ? `已停止（${stepCount} 步）`
+      : `Stopped (${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
   }
 
   const intervals: Array<[number, number]> = []
@@ -95,12 +123,22 @@ export const getClientToolsAreaTitle = (
   }
 
   const seconds = Math.max(1, Math.round(totalMs / 1000))
+  if (hasOnlySearchTools) {
+    if (hasThinking) {
+      return zh
+        ? `已思考与检索（用时 ${seconds} 秒 · ${stepCount} 步）`
+        : `Thought & searched (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+    }
+    return zh
+      ? `已检索（用时 ${seconds} 秒 · ${stepCount} 步）`
+      : `Searched (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+  }
   if (hasThinking) {
     return zh
-      ? `已思考与检索（用时 ${seconds} 秒 · ${stepCount} 步）`
-      : `Thought & searched (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+      ? `已思考并完成（用时 ${seconds} 秒 · ${stepCount} 步）`
+      : `Thought & used tools (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
   }
   return zh
-    ? `已检索（用时 ${seconds} 秒 · ${stepCount} 步）`
-    : `Searched (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
+    ? `已使用工具（用时 ${seconds} 秒 · ${stepCount} 步）`
+    : `Used tools (${seconds}s · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
 }

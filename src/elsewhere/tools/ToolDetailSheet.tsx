@@ -5,6 +5,7 @@ import { android } from '../../app/android.js'
 import { useAndroidBackInterception } from '../../app/useAndroidBackInterception.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { IconCloseOutline16 } from '../../components/base/icons.js'
+import { PythonImageGallery } from '../python/PythonCharts.js'
 import { getSearchEngineLabel } from '../search/config.js'
 import { useIsZh } from '../text.js'
 import { closeToolDetail, useToolDetail } from './toolDetailState.js'
@@ -22,12 +23,21 @@ const formatServiceLabel = (block: ClientToolCallBlock, zh: boolean): string => 
   if (block.name === 'web_fetch') {
     return zh ? '内置网页读取' : 'Built-in Page Fetch'
   }
+  if (block.name === 'run_python') {
+    return zh ? '内置 Python' : 'Built-in Python'
+  }
+  if (block.name === 'search_history') {
+    return zh ? '内置历史检索' : 'Built-in History Search'
+  }
   return block.serverName || (zh ? '内置工具' : 'Built-in Tool')
 }
 
 const formatStatusAndDuration = (block: ClientToolCallBlock, zh: boolean): string => {
   let statusText: string
   switch (block.status) {
+    case 'awaiting_confirmation':
+      statusText = zh ? '等待确认' : 'Awaiting confirmation'
+      break
     case 'running':
       statusText = zh ? '运行中' : 'Running'
       break
@@ -36,6 +46,9 @@ const formatStatusAndDuration = (block: ClientToolCallBlock, zh: boolean): strin
       break
     case 'error':
       statusText = zh ? '失败' : 'Failed'
+      break
+    case 'denied':
+      statusText = zh ? '已拒绝' : 'Denied'
       break
     case 'stopped':
       statusText = zh ? '已停止' : 'Stopped'
@@ -92,8 +105,18 @@ const ToolDetailContent = ({ block }: { block: ClientToolCallBlock }) => {
   const resultText =
     block.error ??
     block.output ??
-    (block.status === 'running' ? (zh ? '执行中…' : 'Running...') : '')
-  const truncated = block.meta?.kind === 'fetch' && block.meta.truncated
+    (block.status === 'awaiting_confirmation'
+      ? zh
+        ? '等待确认…'
+        : 'Awaiting confirmation...'
+      : block.status === 'running'
+        ? zh
+          ? '执行中…'
+          : 'Running...'
+        : '')
+  const truncated =
+    Boolean(block.meta && 'truncated' in block.meta && block.meta.truncated)
+  const pythonImages = block.meta?.kind === 'python' ? (block.meta.images ?? []) : []
 
   return createPortal(
     <div
@@ -132,7 +155,7 @@ const ToolDetailContent = ({ block }: { block: ClientToolCallBlock }) => {
           </div>
           <div className={styles.metaRow}>
             <dt>{zh ? '工具名称' : 'Tool'}</dt>
-            <dd className={styles.mono}>{block.name}</dd>
+            <dd className={styles.mono}>{block.displayName ?? block.name}</dd>
           </div>
           <div className={styles.metaRow}>
             <dt>{zh ? '状态与耗时' : 'Status'}</dt>
@@ -152,9 +175,15 @@ const ToolDetailContent = ({ block }: { block: ClientToolCallBlock }) => {
 
         <div className={styles.section}>
           <div className={styles.sectionLabel}>{zh ? '返回结果' : 'Result'}</div>
-          <pre className={clsx(styles.codeBox, block.status === 'error' && styles.errorText)}>
+          <pre
+            className={clsx(
+              styles.codeBox,
+              (block.status === 'error' || block.status === 'denied') && styles.errorText
+            )}
+          >
             {resultText}
           </pre>
+          {pythonImages.length > 0 ? <PythonImageGallery images={pythonImages} compact /> : null}
         </div>
       </section>
     </div>,

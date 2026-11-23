@@ -52,6 +52,12 @@ import {
   useSearchToolsConfig,
 } from '../../elsewhere/search/config.js'
 import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.js'
+import { useMcpServers } from '../../elsewhere/mcp/config.js'
+import {
+  McpServerAddView,
+  McpServerDetailView,
+  McpServerListView,
+} from '../../elsewhere/mcp/McpSettingsViews.js'
 import { setShowUsageInChat, useElsewherePrefs } from '../../elsewhere/preferences.js'
 import styles from './AndroidSettings.module.css'
 
@@ -89,6 +95,9 @@ type Page =
   | 'font'
   | 'personalization'
   | 'tools'
+  | 'mcpList'
+  | 'mcpAdd'
+  | 'mcpDetail'
   | 'agreements'
 type Popup = 'locale' | 'theme' | 'voice' | 'webFetch' | 'logout' | 'delete' | 'import'
 
@@ -101,6 +110,9 @@ const parentPage: Record<Page, Page | null> = {
   font: 'root',
   personalization: 'root',
   tools: 'root',
+  mcpList: 'tools',
+  mcpAdd: 'mcpList',
+  mcpDetail: 'mcpList',
   agreements: 'root',
 }
 
@@ -366,6 +378,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const editor = useApiKeyEditor()
   const showUsageInChat = useElsewherePrefs((state) => state.showUsageInChat)
   const webFetchMode = useSearchToolsConfig((state) => state.webFetchMode)
+  const [mcpServerId, setMcpServerId] = useState<string | null>(null)
+  const selectedMcpServer = useMcpServers((state) =>
+    mcpServerId ? state.servers.find((item) => item.id === mcpServerId) : undefined
+  )
   const updateBusy = update.phase === 'checking' || update.phase === 'downloading'
 
   useEffect(() => {
@@ -401,6 +417,9 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     font: tr('字体大小', 'Text size'),
     personalization: tr('个性化', 'Personalization'),
     tools: tr('联网搜索与工具', 'Web Search & Tools'),
+    mcpList: tr('MCP 服务', 'MCP servers'),
+    mcpAdd: tr('添加 MCP 服务', 'Add MCP server'),
+    mcpDetail: selectedMcpServer?.name ?? tr('MCP 服务', 'MCP server'),
     agreements: tr('服务协议', 'Service agreement'),
   }
   const language = tr('语言', 'Language')
@@ -618,6 +637,24 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           <IconChevronRightOutline14 />
         </button>
         <h1>{labels[screen]}</h1>
+        {screen === 'mcpList' ? (
+          <button
+            type="button"
+            className={styles.headerAction}
+            onClick={() => openPage('mcpAdd')}
+          >
+            {tr('+ 添加', '+ Add')}
+          </button>
+        ) : null}
+        {screen === 'mcpAdd' ? (
+          <button
+            type="submit"
+            form="android-mcp-add-form"
+            className={styles.headerAction}
+          >
+            {tr('保存', 'Save')}
+          </button>
+        ) : null}
       </header>
       <div className={styles.scroll}>
         {screen === 'root' ? (
@@ -946,6 +983,31 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           <SearchToolsSettings
             variant="android"
             onSelectWebFetchMode={() => setPopup('webFetch')}
+            onOpenMcpList={() => openPage('mcpList')}
+          />
+        ) : null}
+        {screen === 'mcpList' ? (
+          <McpServerListView
+            variant="android"
+            onAdd={() => openPage('mcpAdd')}
+            onSelectServer={(id) => {
+              setMcpServerId(id)
+              openPage('mcpDetail')
+            }}
+          />
+        ) : null}
+        {screen === 'mcpAdd' ? (
+          <McpServerAddView
+            variant="android"
+            formId="android-mcp-add-form"
+            onSaved={back}
+          />
+        ) : null}
+        {screen === 'mcpDetail' && mcpServerId ? (
+          <McpServerDetailView
+            variant="android"
+            serverId={mcpServerId}
+            onDeleted={back}
           />
         ) : null}
         {screen === 'agreements' ? (

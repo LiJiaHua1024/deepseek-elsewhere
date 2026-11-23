@@ -1,8 +1,18 @@
+import { useMcpServers, getEnabledMcpToolsCount } from '../mcp/config.js'
+import { buildActiveMcpTools } from '../mcp/tools.js'
+import { useBuiltinToolsConfig } from '../python/config.js'
+import { usePyodideRuntime } from '../python/runtimeState.js'
 import { isSearchEngineReady } from '../search/config.js'
 import { fetchWebPage } from '../search/fetchPage.js'
 import type { HttpTransport } from '../search/http.js'
 import { executeWebSearch } from '../search/providers.js'
-import type { ClientToolDefinition, SearchToolsRuntimeConfig } from './types.js'
+import { createHistorySearchTool, type HistorySearchDependencies } from './historyTool.js'
+import { createPythonTool } from './pythonTool.js'
+import type {
+  ClientToolDefinition,
+  SearchToolsRuntimeConfig,
+  ToolFileAttachment,
+} from './types.js'
 
 export const LOOP_ABORT_TOOL_RESULT =
   'Tool call stopped: identical or failing calls were repeated without progress. Do not retry this tool. Answer the user directly using the information already gathered, and state clearly if any needed detail could not be verified.'
@@ -88,14 +98,53 @@ export const createWebFetchTool = (options?: {
   },
 })
 
+export const countActiveExtraTools = (): number => {
+  const builtin = useBuiltinToolsConfig.getState()
+  const pyodideReady = usePyodideRuntime.getState().installed
+  const mcpCount = useMcpServers
+    .getState()
+    .servers.filter((server) => getEnabledMcpToolsCount(server) > 0).length
+  return (builtin.pythonEnabled && pyodideReady ? 1 : 0) + (builtin.historySearchEnabled ? 1 : 0) + mcpCount
+}
+
+export const buildActiveExtraTools = ({
+  questionAttachments,
+  historyDeps,
+}: {
+  questionAttachments?: readonly ToolFileAttachment[]
+  historyDeps?: HistorySearchDependencies
+} = {}): ClientToolDefinition[] => {
+  const builtin = useBuiltinToolsConfig.getState()
+  const pyodideReady = usePyodideRuntime.getState().installed
+  const usedNames = new Set<string>(['web_search', 'web_fetch'])
+  const tools: ClientToolDefinition[] = []
+
+  if (builtin.pythonEnabled && pyodideReady) {
+    const pyTool = createPythonTool(questionAttachments)
+    usedNames.add(pyTool.name)
+    tools.push(pyTool)
+  }
+
+  if (builtin.historySearchEnabled && historyDeps) {
+    const historyTool = createHistorySearchTool(historyDeps)
+    usedNames.add(historyTool.name)
+    tools.push(historyTool)
+  }
+
+  tools.push(...buildActiveMcpTools(usedNames))
+  return tools
+}
+
 export const buildActiveClientTools = ({
   searchEnabled,
   questionText,
   config,
+  extraTools = [],
 }: {
   searchEnabled: boolean
   questionText: string
   config: SearchToolsRuntimeConfig
+  extraTools?: readonly ClientToolDefinition[]
 }): ClientToolDefinition[] => {
   const tools: ClientToolDefinition[] = []
   if (searchEnabled) {
@@ -105,10 +154,11 @@ export const buildActiveClientTools = ({
     if (config.webFetchMode !== 'off') {
       tools.push(createWebFetchTool())
     }
-    return tools
-  }
-  if (config.webFetchMode !== 'off' && containsHttpUrl(questionText)) {
+  } else if (config.webFetchMode !== 'off' && containsHttpUrl(questionText)) {
     tools.push(createWebFetchTool())
+  }
+  if (extraTools.length > 0) {
+    tools.push(...extraTools)
   }
   return tools
 }

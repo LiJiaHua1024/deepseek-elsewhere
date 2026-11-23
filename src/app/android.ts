@@ -27,6 +27,14 @@ type AndroidBridge = {
   cancelChatRequest: (id: string) => void
   beginHttpRequest?: (requestId: string, payload: string) => boolean
   cancelHttpRequest?: (requestId: string) => void
+  beginHttpStream?: (streamId: string, payload: string) => boolean
+  cancelHttpStream?: (streamId: string) => void
+  getPyodideStatus?: () => string
+  beginPyodideDownload?: () => void
+  cancelPyodideDownload?: () => void
+  clearPyodideCache?: () => boolean
+  ensurePyodideFiles?: (requestId: string, filesJsonArray: string) => boolean
+  cancelPyodideFiles?: (requestId: string) => void
   requestOfficialBalance?: (requestId: string) => void
   readAccountProfile: () => string | null
   writeAccountProfile: (value: string | null) => boolean
@@ -65,7 +73,7 @@ export const android =
 
 export type NativeHttpRequestOptions = {
   url: string
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'DELETE'
   headers?: Record<string, string>
   body?: string
   timeoutMs?: number
@@ -75,9 +83,42 @@ export type NativeHttpResponse = {
   ok: boolean
   status: number
   contentType: string
+  headers?: Record<string, string>
   text: string
   truncated?: boolean
   error?: string
+}
+
+export type NativeHttpStreamResponse = {
+  ok: boolean
+  status: number
+  contentType: string
+  headers: Record<string, string>
+  body: ReadableStream<Uint8Array> | null
+}
+
+export type NativePyodideStatus = {
+  version: string
+  installed: boolean
+  downloading: boolean
+  progress: number
+  downloadedBytes: number
+  totalBytes: number
+  cachedBytes: number
+  error: string
+}
+
+const normalizeResponseHeaders = (raw: unknown): Record<string, string> => {
+  if (!raw || typeof raw !== 'object') {
+    return {}
+  }
+  const normalized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'string') {
+      normalized[key.toLowerCase()] = value
+    }
+  }
+  return normalized
 }
 
 export const httpRequest = (
@@ -112,6 +153,7 @@ export const httpRequest = (
         ok: Boolean(detail.ok),
         status: typeof detail.status === 'number' ? detail.status : 0,
         contentType: typeof detail.contentType === 'string' ? detail.contentType : '',
+        headers: normalizeResponseHeaders(detail.headers),
         text: typeof detail.text === 'string' ? detail.text : '',
         truncated: Boolean(detail.truncated),
         ...(typeof detail.error === 'string' && detail.error ? { error: detail.error } : {}),
@@ -123,6 +165,198 @@ export const httpRequest = (
     if (!started) {
       cleanup()
       reject(new Error('Unable to start Android HTTP request'))
+    }
+  })
+}
+
+type NativeHttpStreamEvent = { id?: string } & (
+  | { type: 'headers'; status: number; contentType?: string; headers?: Record<string, string> }
+  | { type: 'data'; bytes: string }
+  | { type: 'end' }
+  | { type: 'error'; message?: string }
+)
+
+export const httpStream = (
+  options: NativeHttpRequestOptions,
+  signal?: AbortSignal
+): { response: Promise<NativeHttpStreamResponse>; close: () => void } => {
+  const device = android
+  if (!device?.beginHttpStream) {
+    return {
+      response: Promise.reject(new Error('Android HTTP stream bridge is unavailable')),
+      close: () => {},
+    }
+  }
+  if (signal?.aborted) {
+    return {
+      response: Promise.reject(
+        signal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+      ),
+      close: () => {},
+    }
+  }
+
+  let activeId: string | null = createId()
+  let headersReceived = false
+  let settled = false
+  let receiver: ReadableStreamDefaultController<Uint8Array> | null = null
+  let resolvePromise: (res: NativeHttpStreamResponse) => void = () => {}
+  let rejectPromise: (err: unknown) => void = () => {}
+
+  const response = new Promise<NativeHttpStreamResponse>((resolve, reject) => {
+    resolvePromise = resolve
+    rejectPromise = reject
+  })
+
+  const close = () => {
+    window.removeEventListener('android-http-stream', onEvent)
+    signal?.removeEventListener('abort', onAbort)
+    if (activeId) {
+      const idToCancel = activeId
+      activeId = null
+      device.cancelHttpStream?.(idToCancel)
+    }
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    start: (controller) => {
+      receiver = controller
+    },
+    cancel: () => {
+      close()
+    },
+  })
+
+  const fail = (error: unknown) => {
+    if (settled && !headersReceived) {
+      return
+    }
+    close()
+    if (headersReceived) {
+      try {
+        receiver?.error(error)
+      } catch {
+        // Stream may already be closed
+      }
+    } else if (!settled) {
+      settled = true
+      rejectPromise(error)
+    }
+  }
+
+  const onAbort = () =>
+    fail(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+
+  const onEvent = (event: Event) => {
+    const detail = (event as CustomEvent<NativeHttpStreamEvent>).detail
+    if (!detail || !activeId || detail.id !== activeId) {
+      return
+    }
+    switch (detail.type) {
+      case 'headers': {
+        headersReceived = true
+        settled = true
+        const headers = normalizeResponseHeaders(detail.headers)
+        const contentType =
+          typeof detail.contentType === 'string'
+            ? detail.contentType
+            : (headers['content-type'] ?? '')
+        const status = typeof detail.status === 'number' ? detail.status : 0
+        const hasNoBody = status === 204 || status === 205
+        resolvePromise({
+          ok: status >= 200 && status < 300,
+          status,
+          contentType,
+          headers,
+          body: hasNoBody ? null : stream,
+        })
+        if (hasNoBody) {
+          close()
+        }
+        break
+      }
+      case 'data': {
+        if (!detail.bytes || !receiver) {
+          return
+        }
+        const binary = atob(detail.bytes)
+        const chunk = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i += 1) {
+          chunk[i] = binary.charCodeAt(i)
+        }
+        receiver.enqueue(chunk)
+        break
+      }
+      case 'end': {
+        close()
+        try {
+          receiver?.close()
+        } catch {
+          // Stream already closed
+        }
+        break
+      }
+      case 'error': {
+        fail(new Error(detail.message || 'HTTP stream failed'))
+        break
+      }
+    }
+  }
+
+  window.addEventListener('android-http-stream', onEvent)
+  signal?.addEventListener('abort', onAbort, { once: true })
+  const started = device.beginHttpStream(activeId, JSON.stringify(options))
+  if (!started) {
+    fail(new Error('Unable to start Android HTTP stream'))
+  }
+  return { response, close }
+}
+
+export const ensureAndroidPyodideFiles = (
+  files: readonly string[],
+  signal?: AbortSignal
+): Promise<void> => {
+  const device = android
+  if (!device?.ensurePyodideFiles) {
+    return Promise.resolve()
+  }
+  if (files.length === 0) {
+    return Promise.resolve()
+  }
+  if (signal?.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+    )
+  }
+  const requestId = createId()
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-pyodide-files', onDone)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.cancelPyodideFiles?.(requestId)
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onDone = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; ok?: boolean; error?: string }>).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      if (detail.ok) {
+        resolve()
+      } else {
+        reject(new Error(detail.error || 'Failed to download Python package'))
+      }
+    }
+    window.addEventListener('android-pyodide-files', onDone)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    const started = device.ensurePyodideFiles?.(requestId, JSON.stringify(files))
+    if (!started) {
+      cleanup()
+      reject(new Error('Unable to start Python package download'))
     }
   })
 }

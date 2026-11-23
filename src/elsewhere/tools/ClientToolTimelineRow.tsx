@@ -5,6 +5,30 @@ import { useIsZh } from '../text.js'
 import { openToolDetail } from './toolDetailState.js'
 import styles from './ClientToolTimelineRow.module.css'
 
+const IconCodeOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M5.5 4.25L1.75 8L5.5 11.75M10.5 4.25L14.25 8L10.5 11.75M8.9 3.1L7.1 12.9"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+const IconToolOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M9.9 2.4a3.4 3.4 0 0 0-3.2 4.55L2.45 11.2a1.25 1.25 0 0 0 1.77 1.77l4.25-4.25a3.4 3.4 0 0 0 4.55-3.2 3.3 3.3 0 0 0-.32-1.42l-1.92 1.92-1.4-1.4 1.92-1.92A3.3 3.3 0 0 0 9.9 2.4Z"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 const getFetchDisplayLabel = (step: ClientToolStep): string => {
   const { block } = step
   if (block.meta?.kind === 'fetch') {
@@ -23,7 +47,7 @@ export const ClientToolTimelineRow = ({
 }) => {
   const zh = useIsZh()
   const { block } = step
-  const running = block.status === 'running'
+  const running = block.status === 'running' || block.status === 'awaiting_confirmation'
   const failed = block.status === 'error'
 
   if (block.status === 'aborted_loop') {
@@ -76,16 +100,75 @@ export const ClientToolTimelineRow = ({
     } else if (block.meta?.kind === 'fetch' && block.meta.truncated) {
       suffix = zh ? ' · 已截断' : ' · Truncated'
     }
-  } else {
-    title = block.name
-    icon = <IconBrowseOutline16 />
+  } else if (block.name === 'run_python') {
+    title = zh ? '运行 Python' : 'Run Python'
+    icon = <IconCodeOutline16 />
     if (failed) {
+      suffix = zh ? ' · 运行失败' : ' · Failed'
+      suffixError = true
+    } else if (block.status === 'stopped') {
+      suffix = zh ? ' · 已停止' : ' · Stopped'
+    } else if (block.meta?.kind === 'python') {
+      const parts: string[] = []
+      if (block.meta.images && block.meta.images.length > 0) {
+        const count = block.meta.images.length
+        parts.push(zh ? `已生成 ${count} 张图` : `${count} ${count === 1 ? 'chart' : 'charts'}`)
+      }
+      if (block.meta.truncated) {
+        parts.push(zh ? '已截断' : 'Truncated')
+      }
+      if (parts.length > 0) {
+        suffix = ` · ${parts.join(' · ')}`
+      }
+    }
+  } else if (block.name === 'search_history') {
+    title = zh ? '搜索历史对话' : 'Search history'
+    icon = <IconSearchOutline16 />
+    if (block.meta?.kind === 'history') {
+      if (block.meta.query) {
+        queryLabels = [block.meta.query]
+      }
+      if (block.status === 'done') {
+        suffix = zh
+          ? ` · ${block.meta.count} 条结果`
+          : ` · ${block.meta.count} ${block.meta.count === 1 ? 'result' : 'results'}`
+        if (block.meta.truncated) {
+          suffix += zh ? ' · 已截断' : ' · Truncated'
+        }
+      }
+    } else if (typeof block.input.query === 'string' && block.input.query.trim()) {
+      queryLabels = [block.input.query.trim()]
+    }
+    if (failed) {
+      suffix = zh ? ' · 搜索失败' : ' · Failed'
+      suffixError = true
+    } else if (block.status === 'stopped') {
+      suffix = zh ? ' · 已停止' : ' · Stopped'
+    }
+  } else {
+    const toolLabel = block.displayName ?? block.name
+    title = block.serverName ? `${block.serverName} · ${toolLabel}` : toolLabel
+    icon = <IconToolOutline16 />
+    if (block.status === 'awaiting_confirmation') {
+      suffix = zh ? ' · 等待确认' : ' · Awaiting confirmation'
+    } else if (block.status === 'denied') {
+      suffix = zh ? ' · 已拒绝' : ' · Denied'
+    } else if (failed) {
       suffix = zh ? ' · 失败' : ' · Failed'
       suffixError = true
     } else if (block.status === 'stopped') {
       suffix = zh ? ' · 已停止' : ' · Stopped'
-    } else if (block.meta?.kind === 'generic' && block.meta.summary) {
-      suffix = ` · ${block.meta.summary}`
+    } else if (block.meta?.kind === 'generic') {
+      const parts: string[] = []
+      if (block.meta.summary) {
+        parts.push(block.meta.summary)
+      }
+      if (block.meta.truncated) {
+        parts.push(zh ? '已截断' : 'Truncated')
+      }
+      if (parts.length > 0) {
+        suffix = ` · ${parts.join(' · ')}`
+      }
     }
   }
 

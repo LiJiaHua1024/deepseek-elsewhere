@@ -155,7 +155,7 @@ export const settleReply = (
       return []
     }
     if (block.type === 'client_tool_call') {
-      return block.status === 'running'
+      return block.status === 'running' || block.status === 'awaiting_confirmation'
         ? [{ ...block, status: 'stopped', endedAt: block.endedAt ?? now }]
         : [block]
     }

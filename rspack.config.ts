@@ -52,7 +52,8 @@ export const createConfig = ({
       chunks: (chunk) =>
         !chunk.canBeInitial() &&
         chunk.name !== 'markdown-parser' &&
-        chunk.name !== 'history-import',
+        chunk.name !== 'history-import' &&
+        chunk.name !== 'python-worker',
     },
   },
   resolve: {

@@ -59,6 +59,9 @@ type ParsedToolCall = {
   signature: string
 }
 
+export const TOOL_DENIED_RESULT =
+  'Tool call denied by the user. Do not retry this tool call. Continue responding to the user without executing this action, or briefly ask if they want an alternative approach.'
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -339,7 +342,9 @@ export const runClientToolLoop = async ({
         type: 'client_tool_call',
         id: call.id,
         name: call.name,
+        ...(def?.displayName ? { displayName: def.displayName } : {}),
         source: def?.source ?? 'builtin',
+        ...(def?.serverId ? { serverId: def.serverId } : {}),
         ...(def?.serverName ? { serverName: def.serverName } : {}),
         input: call.input,
         ...(call.rawInput !== undefined ? { rawInput: call.rawInput } : {}),
@@ -353,6 +358,7 @@ export const runClientToolLoop = async ({
     const executedResults = await Promise.all(
       parsedCalls.map(async (call): Promise<ToolExecutionResult> => {
         let result: ToolExecutionResult
+        let deniedByUser = false
         if (call.parseError) {
           result = { content: call.parseError, isError: true }
         } else {
@@ -360,12 +366,28 @@ export const runClientToolLoop = async ({
           if (!tool) {
             result = { content: `Unknown tool: ${call.name}`, isError: true }
           } else {
+            const setStatus = (nextStatus: 'awaiting_confirmation' | 'running') => {
+              if (signal.aborted) {
+                return
+              }
+              reply = updateToolBlock(reply, call.id, (block) => ({
+                ...block,
+                status: nextStatus,
+                ...(nextStatus === 'running' ? { startedAt: now() } : {}),
+              }))
+              onReplyUpdate(reply, true)
+            }
             const decision = beforeExecute
-              ? await beforeExecute({ id: call.id, name: call.name, tool, input: call.input })
+              ? await beforeExecute(
+                  { id: call.id, name: call.name, tool, input: call.input },
+                  { setStatus }
+                )
               : 'allow'
             if (decision === 'deny') {
-              result = { content: 'Tool execution denied.', isError: true }
+              deniedByUser = true
+              result = { content: TOOL_DENIED_RESULT, isError: true }
             } else {
+              setStatus('running')
               try {
                 result = await tool.execute(call.input, toolContext)
               } catch (error) {
@@ -385,7 +407,7 @@ export const runClientToolLoop = async ({
         if (!signal.aborted) {
           reply = updateToolBlock(reply, call.id, (block) => ({
             ...block,
-            status: result.isError ? 'error' : 'done',
+            status: deniedByUser ? 'denied' : result.isError ? 'error' : 'done',
             output: result.content,
             ...(result.isError ? { error: result.content } : { error: undefined }),
             ...(result.meta ? { meta: result.meta } : {}),

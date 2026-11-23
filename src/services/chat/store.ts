@@ -26,8 +26,11 @@ import {
   scheduleSessionTitleFallback,
 } from '../../elsewhere/title.js'
 import { getSearchToolsRuntimeConfig } from '../../elsewhere/search/config.js'
-import { buildActiveClientTools } from '../../elsewhere/tools/builtin.js'
+import { mcpClient } from '../../elsewhere/mcp/protocol.js'
+import { buildActiveClientTools, buildActiveExtraTools } from '../../elsewhere/tools/builtin.js'
+import { clearSessionToolApprovals, requestToolConfirmation } from '../../elsewhere/tools/confirmation.js'
 import { runClientToolLoop } from '../../elsewhere/tools/loop.js'
+import { injectLocalDateTime } from '../../elsewhere/tools/systemTime.js'
 import {
   activateBranch,
   appendBranch,
@@ -641,6 +644,11 @@ export const mergeHistory = async (
 
 export const newChat = () => {
   if (!get().importingHistory) {
+    const prevId = get().activeId
+    if (prevId) {
+      clearSessionToolApprovals(prevId)
+    }
+    mcpClient.closeAllLegacyStreams()
     cancelMessageEdit()
     set({ activeId: null, pendingJump: null })
     trimSessionCache()
@@ -649,6 +657,11 @@ export const newChat = () => {
 
 export const selectSession = (id: string) => {
   if (!get().importingHistory && get().sessions.some((session) => session.id === id)) {
+    const prevId = get().activeId
+    if (prevId && prevId !== id) {
+      clearSessionToolApprovals(prevId)
+      mcpClient.closeAllLegacyStreams()
+    }
     cancelMessageEdit()
     touchSession(id)
     set({ activeId: id, pendingJump: null })
@@ -665,6 +678,11 @@ export const selectSessionMessage = (sessionId: string, messageId: string) => {
     !get().sessions.some((session) => session.id === sessionId)
   ) {
     return
+  }
+  const prevId = get().activeId
+  if (prevId && prevId !== sessionId) {
+    clearSessionToolApprovals(prevId)
+    mcpClient.closeAllLegacyStreams()
   }
   cancelMessageEdit()
   touchSession(sessionId)
@@ -758,6 +776,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
   const epoch = historyEpoch
   deletingSessions.add(id)
   try {
+    clearSessionToolApprovals(id)
     cancelSessionTitleTask(id)
     getStreamController(id)?.abort()
     // 等本会话的流收尾，避免删除之后又被收尾保存写回来。
@@ -1522,18 +1541,33 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           window
         )
         const searchToolsConfig = getSearchToolsRuntimeConfig(apiKey)
-        const useExternalTools = custom || searchToolsConfig.useExternalOnOfficial
+        const activeExtraTools = buildActiveExtraTools({
+          questionAttachments: activeQuestion.files,
+          historyDeps: {
+            getHistoryState: () => {
+              const state = get()
+              return {
+                activeSessionId: sessionId,
+                summaries: state.sessions,
+                sessionCache: state.sessionCache,
+              }
+            },
+          },
+        })
+        const useExternalTools =
+          custom || searchToolsConfig.useExternalOnOfficial || activeExtraTools.length > 0
         const activeClientTools = useExternalTools
           ? buildActiveClientTools({
               searchEnabled: Boolean(initial.search),
               questionText: activeQuestion.content,
               config: searchToolsConfig,
+              extraTools: activeExtraTools,
             })
           : []
         const body: CreateMessageRequest = {
           model: requestModel,
           max_tokens: requestMaxOutput,
-          system: custom ? '' : SYSTEM_PROMPT,
+          system: custom ? injectLocalDateTime('') : SYSTEM_PROMPT,
           messages,
           thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
           safety_check: SAFETY_CHECK,
@@ -1555,10 +1589,25 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           const loopResult = await runClientToolLoop({
             baseBody: body,
             tools: activeClientTools,
-            toolContext: { signal, config: searchToolsConfig },
+            toolContext: {
+              signal,
+              config: searchToolsConfig,
+              sessionId,
+              attachments: activeQuestion.files,
+              loadFile: (id) => loadOriginalFile(sessionId, id),
+            },
             initialReply: reply,
             streamStep: (stepBody, stepSignal) =>
               streamChatMessage(chatConfig, apiKey, stepBody, stepSignal),
+            beforeExecute: ({ id: callId, tool, input }, helpers) =>
+              requestToolConfirmation({
+                sessionId,
+                callId,
+                tool,
+                input,
+                signal,
+                onAwaiting: () => helpers?.setStatus('awaiting_confirmation'),
+              }),
             onReplyUpdate: (nextReply, immediate) => {
               reply = nextReply
               if (immediate || document.visibilityState === 'hidden') {
@@ -1709,6 +1758,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       }
     }
   } finally {
+    mcpClient.closeAllLegacyStreams()
     const activeSession = getSession(sessionId)
     const needsClientTitle =
       titleRequests.has(controller) &&

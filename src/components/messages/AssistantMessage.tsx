@@ -30,6 +30,7 @@ import { formatAndroidCopyText } from '../../services/markdown/copyText.js'
 import { SiteThumbnails } from '../search/SiteLogo.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
 import { AndroidTextSelection } from './AndroidTextSelection.js'
+import { PythonCharts } from '../../elsewhere/python/PythonCharts.js'
 import { ReadAloudButton } from './ReadAloudButton.js'
 import { CopyButton } from './CopyButton.js'
 import { ReplyArea } from './ReplyArea.js'
@@ -306,6 +307,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           />
         ) : null}
       </div>
+      <PythonCharts message={message} />
       {waiting ? (
         <div className={styles.waiting}>
           {[0, 1, 2].map((index) => (

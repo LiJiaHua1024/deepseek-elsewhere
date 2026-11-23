@@ -43,6 +43,7 @@ import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useAndroidDrawerGesture } from '../components/sider/useAndroidDrawerGesture.js'
 import { SessionStatusSheet } from '../elsewhere/SessionStatusSheet.js'
 import { ToolDetailSheet } from '../elsewhere/tools/ToolDetailSheet.js'
+import { ToolsDrawer } from '../elsewhere/tools/ToolsDrawer.js'
 import { closeToolDetail } from '../elsewhere/tools/toolDetailState.js'
 import styles from './App.module.css'
 
@@ -360,6 +361,7 @@ export const App = () => {
       {android ? <AndroidSettings chatFrame={frameRef} /> : <SettingsDialog />}
       <SessionStatusSheet />
       <ToolDetailSheet />
+      <ToolsDrawer />
       <Toast />
     </>
   )

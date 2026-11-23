@@ -29,12 +29,17 @@ export const canonicalStableJson = (value: unknown): string => {
   return serialized ?? 'null'
 }
 
-export type BeforeToolExecuteHook = (call: {
-  id: string
-  name: string
-  tool: ClientToolDefinition
-  input: Record<string, unknown>
-}) => Promise<'allow' | 'deny'>
+export type BeforeToolExecuteHook = (
+  call: {
+    id: string
+    name: string
+    tool: ClientToolDefinition
+    input: Record<string, unknown>
+  },
+  helpers?: {
+    setStatus: (status: 'awaiting_confirmation' | 'running') => void
+  }
+) => Promise<'allow' | 'deny'>
 
 export type ClientToolSchema = {
   name: string

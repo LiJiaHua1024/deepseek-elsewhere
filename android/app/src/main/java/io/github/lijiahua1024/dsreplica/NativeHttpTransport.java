@@ -26,7 +26,7 @@ import org.json.JSONObject;
 final class NativeHttpTransport {
     private static final int DEFAULT_TIMEOUT_MS = 15_000;
     private static final int MIN_TIMEOUT_MS = 1_000;
-    private static final int MAX_TIMEOUT_MS = 60_000;
+    private static final int MAX_TIMEOUT_MS = 120_000;
     private static final int MAX_REDIRECTS = 5;
     private static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
     private static final String DEFAULT_USER_AGENT =
@@ -47,7 +47,7 @@ final class NativeHttpTransport {
                 return false;
             }
             String method = payload.optString("method", "GET").toUpperCase(Locale.ROOT);
-            if (!"GET".equals(method) && !"POST".equals(method)) {
+            if (!"GET".equals(method) && !"POST".equals(method) && !"DELETE".equals(method)) {
                 return false;
             }
             int timeoutMs = payload.has("timeoutMs")
@@ -117,7 +117,7 @@ final class NativeHttpTransport {
                     conn.setRequestProperty("User-Agent", DEFAULT_USER_AGENT);
                 }
 
-                if ("POST".equals(currentMethod)) {
+                if ("POST".equals(currentMethod) || ("DELETE".equals(currentMethod) && currentBody != null && !currentBody.isEmpty())) {
                     byte[] data = currentBody != null
                         ? currentBody.getBytes(StandardCharsets.UTF_8)
                         : new byte[0];
@@ -165,6 +165,7 @@ final class NativeHttpTransport {
                 }
 
                 String contentType = conn.getContentType();
+                JSONObject responseHeaders = collectResponseHeaders(conn);
                 boolean truncated = false;
                 String text = "";
                 try (InputStream input = status >= 400 ? conn.getErrorStream() : conn.getInputStream()) {
@@ -185,7 +186,7 @@ final class NativeHttpTransport {
                     }
                 }
                 if (!call.cancelled) {
-                    emitResponse(requestId, status >= 200 && status < 300, status, contentType, text, truncated, emit);
+                    emitResponse(requestId, status >= 200 && status < 300, status, contentType, responseHeaders, text, truncated, emit);
                 }
                 return;
             }
@@ -313,11 +314,34 @@ final class NativeHttpTransport {
         return StandardCharsets.UTF_8;
     }
 
+    private static JSONObject collectResponseHeaders(HttpURLConnection conn) {
+        JSONObject map = new JSONObject();
+        Map<String, List<String>> fields = conn.getHeaderFields();
+        if (fields == null) {
+            return map;
+        }
+        for (Map.Entry<String, List<String>> entry : fields.entrySet()) {
+            String key = entry.getKey();
+            List<String> values = entry.getValue();
+            if (key == null || values == null || values.isEmpty()) {
+                continue;
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            String joined = String.join(", ", values);
+            try {
+                map.put(lower, joined);
+            } catch (JSONException ignored) {
+            }
+        }
+        return map;
+    }
+
     private static void emitResponse(
         String id,
         boolean ok,
         int status,
         String contentType,
+        JSONObject headers,
         String text,
         boolean truncated,
         Consumer<String> emit
@@ -328,6 +352,7 @@ final class NativeHttpTransport {
             json.put("ok", ok);
             json.put("status", status);
             json.put("contentType", contentType != null ? contentType : "");
+            json.put("headers", headers != null ? headers : new JSONObject());
             json.put("text", text != null ? text : "");
             json.put("truncated", truncated);
             emit.accept(safeJson(json));

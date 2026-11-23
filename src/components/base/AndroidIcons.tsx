@@ -47,7 +47,11 @@ export const AndroidCircle = ({ icon }: { icon: 'add' | 'close' | 'voice' | 'key
   </svg>
 )
 
-export const AndroidAttachment = ({ kind }: { kind: 'camera' | 'gallery' | 'files' }) => (
+export const AndroidAttachment = ({
+  kind,
+}: {
+  kind: 'camera' | 'gallery' | 'files' | 'tools'
+}) => (
   <svg
     width="20"
     height="20"
@@ -74,6 +78,9 @@ export const AndroidAttachment = ({ kind }: { kind: 'camera' | 'gallery' | 'file
     ) : null}
     {kind === 'files' ? (
       <path d="m21 11.1-9 9a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 1 1-2.8-2.8l8.3-8.3" />
+    ) : null}
+    {kind === 'tools' ? (
+      <path d="M14.7 6.3a4.6 4.6 0 0 0-4.3 6.2L4.2 18.7a1.8 1.8 0 0 0 2.5 2.5l6.2-6.2a4.6 4.6 0 0 0 6.2-4.3 4.5 4.5 0 0 0-.4-1.9l-2.6 2.6-2-2 2.6-2.6a4.5 4.5 0 0 0-2-.5Z" />
     ) : null}
   </svg>
 )

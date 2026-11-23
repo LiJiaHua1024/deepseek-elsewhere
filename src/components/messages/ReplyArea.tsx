@@ -89,7 +89,11 @@ export const ReplyArea = memo(function ReplyArea({
   const hasClientTools = view.steps.some((step) => step.type === 'client_tool')
   const hasRunningClientTool =
     streaming &&
-    view.steps.some((step) => step.type === 'client_tool' && step.block.status === 'running')
+    view.steps.some(
+      (step) =>
+        step.type === 'client_tool' &&
+        (step.block.status === 'running' || step.block.status === 'awaiting_confirmation')
+    )
   const open =
     override ??
     (hasClientTools ? streaming && (!hasResponse || hasRunningClientTool) : !android || !fold || !hasResponse)

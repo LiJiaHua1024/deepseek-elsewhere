@@ -1,7 +1,9 @@
+import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { android } from '../../app/android.js'
 import { useTranslate } from '../../i18n/index.js'
 import { ACCEPT } from '../../services/attachments.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import { AndroidAttachment } from '../base/AndroidIcons.js'
 import { showToast } from '../base/toastState.js'
 import { setInert } from '../../utils/inert.js'
@@ -16,14 +18,19 @@ export const AndroidAttachments = ({
   selectedPhotos,
   onRecentFile,
   onRemove,
+  activeToolsCount = 0,
+  onOpenTools,
 }: {
   open: boolean
   onFiles: (files: File[], source: Source) => void
   selectedPhotos: ReadonlyMap<string, string>
   onRecentFile: (file: File, photoId: string) => void
   onRemove: (attachmentId: string) => void
+  activeToolsCount?: number
+  onOpenTools?: () => void
 }) => {
   const t = useTranslate()
+  const zh = useIsZh()
   const camera = useRef<HTMLInputElement>(null)
   const gallery = useRef<HTMLInputElement>(null)
   const documents = useRef<HTMLInputElement>(null)
@@ -173,6 +180,19 @@ export const AndroidAttachments = ({
               />
             </div>
           ))}
+          <div>
+            <button
+              type="button"
+              className={clsx(styles.toolsButton, activeToolsCount > 0 && styles.toolsActive)}
+              onClick={() => onOpenTools?.()}
+            >
+              <AndroidAttachment kind="tools" />
+              {zh ? '工具' : 'Tools'}
+              {activeToolsCount > 0 ? (
+                <span className={styles.toolsBadge}>{activeToolsCount}</span>
+              ) : null}
+            </button>
+          </div>
         </div>
       </div>
     </section>
