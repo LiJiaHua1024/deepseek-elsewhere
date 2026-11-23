@@ -13,9 +13,10 @@ import {
   toggleMobileSider,
   useMobileSider,
 } from '../sider/mobileSiderState.js'
+import { HeaderModelTrigger } from '../../elsewhere/models/HeaderModelTrigger.js'
 import styles from './MobileHeader.module.css'
 
-/** 移动端顶栏：左侧菜单打开或切换侧边栏；会话页再显示标题与开启新对话 */
+/** 移动端顶栏：左侧菜单打开或切换侧边栏；中央模型与会话设置；右侧朗读与新对话 */
 export const MobileHeader = ({ title }: { title?: string }) => {
   const t = useTranslate()
   const androidWide = useIsAndroidWide()
@@ -36,13 +37,11 @@ export const MobileHeader = ({ title }: { title?: string }) => {
         aria-expanded={androidWide ? drawerOpen : undefined}
         onClick={androidWide ? toggleMobileSider : openMobileSider}
       />
-      {title === undefined && !android ? null : (
+      <HeaderModelTrigger title={title} />
+      {title === undefined && !android ? (
+        <span className={styles.balanceSpacer} aria-hidden="true" />
+      ) : (
         <>
-          {title === undefined ? null : (
-            <div className={styles.title} data-side-shift={android ? 'edge' : undefined}>
-              <span className={styles.titleText}>{title}</span>
-            </div>
-          )}
           {android ? (
             <IconButton
               size="xl"

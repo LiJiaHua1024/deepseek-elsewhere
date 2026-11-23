@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import whale from '../../assets/elsewhere-whale.svg'
+import { ModelServicesDialog } from '../../elsewhere/models/ModelSettingsViews.js'
+import { useIsZh } from '../../elsewhere/text.js'
 import { useTranslate } from '../../i18n/index.js'
-import { AdvancedApiDialog } from './AdvancedApiSettings.js'
 import advancedStyles from './AdvancedApiSettings.module.css'
 import { useApiKeyForm } from './useApiKeyForm.js'
 import styles from './ApiKeyScreen.module.css'
 
 export const ApiKeyScreen = () => {
   const t = useTranslate()
+  const zh = useIsZh()
   const form = useApiKeyForm()
   const [advanced, setAdvanced] = useState(false)
 
@@ -44,10 +46,10 @@ export const ApiKeyScreen = () => {
         </button>
         <a href="https://platform.deepseek.com/api_keys">{t('apiKeyGet')}</a>
         <button className={advancedStyles.entry} type="button" onClick={() => setAdvanced(true)}>
-          {t('advancedSettings')}
+          {zh ? '配置其他模型服务' : 'Configure other model services'}
         </button>
       </form>
-      {advanced ? <AdvancedApiDialog onClose={() => setAdvanced(false)} /> : null}
+      {advanced ? <ModelServicesDialog onClose={() => setAdvanced(false)} /> : null}
     </main>
   )
 }

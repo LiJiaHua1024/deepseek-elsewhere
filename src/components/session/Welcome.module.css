@@ -4,6 +4,27 @@
   display: flex;
 }
 
+.desktopHeader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  height: 60px;
+  padding: 12px 18px 0;
+  box-sizing: border-box;
+  pointer-events: none;
+
+  & > * {
+    pointer-events: auto;
+  }
+}
+
+.withCollapsedSider {
+  margin-left: 113px;
+}
+
 .welcome {
   display: flex;
   flex-direction: column;

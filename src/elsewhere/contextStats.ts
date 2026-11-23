@@ -1,4 +1,5 @@
 import { DEFAULT_CHAT_MODEL, type ChatConfig } from '../services/api/chatConfig.js'
+import { getActiveModelContextWindow } from './models/config.js'
 import { getVisibleMessages } from '../services/chat/branches.js'
 import {
   estimateBranchScale,
@@ -90,7 +91,10 @@ export const computeContextStats = (
 ): ContextStats => {
   const visibleMessages = getVisibleMessages(session)
   const custom = Boolean(chatConfig.endpoint)
-  const windowTokens = custom ? CUSTOM_CONTEXT_WINDOW : WINDOW_TOKENS
+  const modelWindow = getActiveModelContextWindow()
+  const windowTokens = custom
+    ? (modelWindow ?? CUSTOM_CONTEXT_WINDOW)
+    : (modelWindow ?? WINDOW_TOKENS)
   const modelName = resolveActiveModel(visibleMessages, chatConfig)
 
   if (!visibleMessages.length) {

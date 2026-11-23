@@ -4,6 +4,8 @@
  * 声明联网工具、开启高级审核或启用自动标题时进入扩展模式。
  */
 
+import type { ReasoningEffort, SamplingParams } from '../../elsewhere/models/types.js'
+
 export type ChatModel = string
 
 // ---------- 响应：内容块 ----------
@@ -213,6 +215,8 @@ export type CreateMessageRequest = {
   system: string
   messages: MessageParam[]
   thinking: { type: 'enabled' | 'disabled' }
+  reasoningEffort?: ReasoningEffort
+  sampling?: SamplingParams
   tools?: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
   clientTools?: ClientToolSchema[]
   safety_check?: { level: 'high' }

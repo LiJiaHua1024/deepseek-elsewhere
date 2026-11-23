@@ -42,6 +42,7 @@ import {
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useAndroidDrawerGesture } from '../components/sider/useAndroidDrawerGesture.js'
 import { SessionStatusSheet } from '../elsewhere/SessionStatusSheet.js'
+import { ModelSessionDrawer } from '../elsewhere/models/ModelSessionDrawer.js'
 import { ToolDetailSheet } from '../elsewhere/tools/ToolDetailSheet.js'
 import { ToolsDrawer } from '../elsewhere/tools/ToolsDrawer.js'
 import { closeToolDetail } from '../elsewhere/tools/toolDetailState.js'
@@ -360,6 +361,7 @@ export const App = () => {
       </div>
       {android ? <AndroidSettings chatFrame={frameRef} /> : <SettingsDialog />}
       <SessionStatusSheet />
+      <ModelSessionDrawer />
       <ToolDetailSheet />
       <ToolsDrawer />
       <Toast />

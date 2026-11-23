@@ -4,6 +4,7 @@ import { android } from '../../app/android.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useTranslate } from '../../i18n/index.js'
 import type { Session } from '../../services/chat/types.js'
+import { DesktopModelTrigger } from '../../elsewhere/models/HeaderModelTrigger.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
 import { MessageList } from '../messages/MessageList.js'
 import { MobileHeader } from './MobileHeader.js'
@@ -31,6 +32,7 @@ export const SessionView = memo(function SessionView({
           <div className={clsx(styles.title, siderCollapsed && styles.withCollapsedSider)}>
             {title}
           </div>
+          <DesktopModelTrigger />
         </div>
       )}
       <MessageList

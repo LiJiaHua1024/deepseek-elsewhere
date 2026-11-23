@@ -38,18 +38,40 @@ import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
-import { AdvancedApiDialog } from './AdvancedApiSettings.js'
 import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { useModelProviders } from '../../elsewhere/models/config.js'
+import { ModelServicesSettings } from '../../elsewhere/models/ModelSettingsViews.js'
+import { SystemPromptsSettings } from '../../elsewhere/prompts/PromptSettingsViews.js'
 import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.js'
 import { useIsZh } from '../../elsewhere/text.js'
 import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
 import styles from './Settings.module.css'
 
+const ModelsIcon16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="2" y="2.5" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
+    <rect x="2" y="9" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
+    <circle cx="4.5" cy="4.75" r="0.75" fill="currentColor" />
+    <circle cx="4.5" cy="11.25" r="0.75" fill="currentColor" />
+  </svg>
+)
+
+const PromptsIcon16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M3.2 2.5h9.6c.7 0 1.2.5 1.2 1.2v8.6c0 .7-.5 1.2-1.2 1.2H3.2c-.7 0-1.2-.5-1.2-1.2V3.7c0-.7.5-1.2 1.2-1.2Z"
+      stroke="currentColor"
+      strokeWidth="1.35"
+    />
+    <path d="M5 5.8h6M5 8.2h6M5 10.6h3.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+)
+
 /**
- * 设置弹窗：通用设置、账号管理和数据管理。
+ * 设置弹窗：通用设置、模型服务、系统指令、工具、账号管理与数据管理。
  * 桌面端为居中弹窗、左侧导航；移动端为底部弹层、导航横排在内容上方
  */
 export const SettingsDialog = () => {
@@ -57,13 +79,21 @@ export const SettingsDialog = () => {
   return open ? <SettingsContent /> : null
 }
 
-const sections: { value: SettingsSection; label?: TranslationKey; icon: ReactNode }[] = [
+const sections: {
+  value: SettingsSection
+  label?: TranslationKey
+  zh?: string
+  en?: string
+  icon: ReactNode
+}[] = [
   {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
-  { value: 'tools', icon: <IconGlobeLanguageOutline14 /> },
+  { value: 'models', zh: '模型服务', en: 'Model services', icon: <ModelsIcon16 /> },
+  { value: 'prompts', zh: '系统指令', en: 'Instructions', icon: <PromptsIcon16 /> },
+  { value: 'tools', zh: '联网搜索与工具', en: 'Web Search & Tools', icon: <IconGlobeLanguageOutline14 /> },
   { value: 'account', label: 'accountManagement', icon: <ProfileIcon /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
@@ -72,18 +102,22 @@ const SettingsContent = () => {
   const t = useTranslate()
   const zh = useIsZh()
   const isMobile = useIsMobile()
-  const model = useSettings((state) => state.chatConfig.model)
+  const providers = useModelProviders((state) => state.providers)
+  const activeModel = useModelProviders((state) => state.activeModel)
+  const activeProvider = providers.find((item) => item.id === activeModel.providerId)
+  const activeModelItem = activeProvider?.models.find((item) => item.id === activeModel.modelId)
+  const modelLabel = activeModelItem?.label || activeModel.modelId
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
-  const [section, setSection] = useState(() => useSettingsDialog.getState().section)
+  const [section, setSection] = useState<SettingsSection>(() => {
+    const initial = useSettingsDialog.getState().section
+    return initial === 'advanced' ? 'models' : initial
+  })
   // 切换分组不丢失正在输入的 API Key 与导入状态
   const apiKeyEditor = useApiKeyEditor()
   const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
-  if (section === 'advanced') {
-    return <AdvancedApiDialog onClose={() => setSection('data')} />
-  }
   return (
     <>
       <Modal
@@ -108,7 +142,7 @@ const SettingsContent = () => {
               onClick={() => setSection(item.value)}
             >
               {item.icon}
-              {item.label ? t(item.label) : zh ? '联网搜索与工具' : 'Web Search & Tools'}
+              {item.label ? t(item.label) : zh ? item.zh : item.en}
             </button>
           ))}
         </div>
@@ -121,6 +155,10 @@ const SettingsContent = () => {
               <LocationSetting />
               <UsageToggleSetting />
             </>
+          ) : section === 'models' ? (
+            <ModelServicesSettings />
+          ) : section === 'prompts' ? (
+            <SystemPromptsSettings />
           ) : section === 'tools' ? (
             <SearchToolsSettings variant="web" />
           ) : section === 'account' ? (
@@ -130,15 +168,15 @@ const SettingsContent = () => {
               <ApiKeyField editor={apiKeyEditor} />
               <BalanceCard variant="web" />
               <SettingCell
-                label={t('advancedSettings')}
-                description={model || undefined}
+                label={zh ? '模型服务' : 'Model services'}
+                description={modelLabel || undefined}
                 status={null}
                 action={
                   <Button
-                    aria-label={t('advancedSettings')}
+                    aria-label={zh ? '模型服务' : 'Model services'}
                     variant="outlined"
                     size="m"
-                    onClick={() => setSection('advanced')}
+                    onClick={() => setSection('models')}
                   >
                     <IconChevronRightOutline14 />
                   </Button>

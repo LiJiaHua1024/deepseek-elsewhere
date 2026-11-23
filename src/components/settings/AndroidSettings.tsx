@@ -41,12 +41,23 @@ import {
 import { showToast } from '../base/toastState.js'
 import { closeOverlaySider } from '../sider/mobileSiderState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
-import { AdvancedApiSettings } from './AdvancedApiSettings.js'
 import { createSettingsPageMotion } from './androidSettingsMotion.js'
 import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { useModelProviders } from '../../elsewhere/models/config.js'
+import {
+  ModelManageView,
+  ModelProviderAddView,
+  ModelProviderDetailView,
+  ModelProviderListView,
+} from '../../elsewhere/models/ModelSettingsViews.js'
+import { useSystemPrompts } from '../../elsewhere/prompts/config.js'
+import {
+  SystemPromptEditView,
+  SystemPromptListView,
+} from '../../elsewhere/prompts/PromptSettingsViews.js'
 import {
   setWebFetchMode,
   useSearchToolsConfig,
@@ -89,7 +100,12 @@ type UpdateStatus = {
 type Page =
   | 'root'
   | 'account'
-  | 'advanced'
+  | 'models'
+  | 'modelProviderAdd'
+  | 'modelProviderDetail'
+  | 'modelManage'
+  | 'prompts'
+  | 'promptEdit'
   | 'data'
   | 'export'
   | 'font'
@@ -104,7 +120,12 @@ type Popup = 'locale' | 'theme' | 'voice' | 'webFetch' | 'logout' | 'delete' | '
 const parentPage: Record<Page, Page | null> = {
   root: null,
   account: 'root',
-  advanced: 'account',
+  models: 'root',
+  modelProviderAdd: 'models',
+  modelProviderDetail: 'models',
+  modelManage: 'modelProviderDetail',
+  prompts: 'root',
+  promptEdit: 'prompts',
   data: 'root',
   export: 'data',
   font: 'root',
@@ -115,6 +136,40 @@ const parentPage: Record<Page, Page | null> = {
   mcpDetail: 'mcpList',
   agreements: 'root',
 }
+
+const ModelsIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.45"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="2.5" y="3" width="13" height="5" rx="1.6" />
+    <rect x="2.5" y="10" width="13" height="5" rx="1.6" />
+    <circle cx="5.2" cy="5.5" r="0.8" fill="currentColor" stroke="none" />
+    <circle cx="5.2" cy="12.5" r="0.8" fill="currentColor" stroke="none" />
+  </svg>
+)
+
+const PromptsIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.45"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="2.6" width="12" height="12.8" rx="1.6" />
+    <path d="M5.6 6.2h6.8M5.6 9h6.8M5.6 11.8h4.2" />
+  </svg>
+)
 
 const PersonalizationIcon = () => (
   <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
@@ -335,11 +390,13 @@ export const AndroidSettings = ({ chatFrame }: { chatFrame: RefObject<HTMLDivEle
       start={
         section === 'general'
           ? 'root'
-          : section === 'advanced'
-            ? 'advanced'
-            : section === 'tools'
-              ? 'tools'
-              : 'account'
+          : section === 'models' || section === 'advanced'
+            ? 'models'
+            : section === 'prompts'
+              ? 'prompts'
+              : section === 'tools'
+                ? 'tools'
+                : 'account'
       }
       chatFrame={chatFrame}
       key={section}
@@ -356,7 +413,6 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     fontSize,
     foldThinking,
     ttsVoice,
-    chatConfig,
   } = useSettings()
   const tr = (chinese: string, english: string) => (locale === 'zh-CN' ? chinese : english)
   const [page, setPage] = useState<Page>(start)
@@ -382,6 +438,19 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const selectedMcpServer = useMcpServers((state) =>
     mcpServerId ? state.servers.find((item) => item.id === mcpServerId) : undefined
   )
+  const providers = useModelProviders((state) => state.providers)
+  const activeModel = useModelProviders((state) => state.activeModel)
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('deepseek')
+  const selectedProvider = providers.find((item) => item.id === selectedProviderId)
+  const activeProvider = providers.find((item) => item.id === activeModel.providerId)
+  const activeModelItem = activeProvider?.models.find((item) => item.id === activeModel.modelId)
+  const activeModelLabel = activeModelItem?.label || activeModel.modelId
+  const presets = useSystemPrompts((state) => state.presets)
+  const defaultPresetId = useSystemPrompts((state) => state.defaultPresetId)
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
+  const defaultPromptName =
+    (defaultPresetId ? presets.find((item) => item.id === defaultPresetId)?.name : null) ??
+    tr('无', 'None')
   const updateBusy = update.phase === 'checking' || update.phase === 'downloading'
 
   useEffect(() => {
@@ -411,7 +480,12 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const labels: Record<Page, string> = {
     root: t('settings'),
     account: t('accountManagement'),
-    advanced: t('advancedSettings'),
+    models: tr('模型服务', 'Model services'),
+    modelProviderAdd: tr('添加服务商', 'Add provider'),
+    modelProviderDetail: selectedProvider?.name ?? tr('模型服务', 'Model service'),
+    modelManage: tr('管理模型', 'Manage models'),
+    prompts: tr('系统指令', 'System instructions'),
+    promptEdit: editingPromptId ? tr('编辑预设', 'Edit preset') : tr('新建预设', 'New preset'),
     data: tr('数据管理', 'Data management'),
     export: t('exportAllLabel'),
     font: tr('字体大小', 'Text size'),
@@ -637,6 +711,45 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           <IconChevronRightOutline14 />
         </button>
         <h1>{labels[screen]}</h1>
+        {screen === 'models' ? (
+          <button
+            type="button"
+            className={styles.headerAction}
+            onClick={() => openPage('modelProviderAdd')}
+          >
+            {tr('+ 添加', '+ Add')}
+          </button>
+        ) : null}
+        {screen === 'modelProviderAdd' ? (
+          <button
+            type="submit"
+            form="android-model-provider-add-form"
+            className={styles.headerAction}
+          >
+            {tr('保存', 'Save')}
+          </button>
+        ) : null}
+        {screen === 'prompts' ? (
+          <button
+            type="button"
+            className={styles.headerAction}
+            onClick={() => {
+              setEditingPromptId(null)
+              openPage('promptEdit')
+            }}
+          >
+            {tr('+ 新建', '+ New')}
+          </button>
+        ) : null}
+        {screen === 'promptEdit' ? (
+          <button
+            type="submit"
+            form="android-prompt-edit-form"
+            className={styles.headerAction}
+          >
+            {tr('保存', 'Save')}
+          </button>
+        ) : null}
         {screen === 'mcpList' ? (
           <button
             type="button"
@@ -672,6 +785,18 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
               />
             </Group>
             <Group label={tr('应用', 'App')}>
+              <Row
+                label={labels.models}
+                value={activeModelLabel}
+                icon={<ModelsIcon />}
+                onClick={() => openPage('models')}
+              />
+              <Row
+                label={labels.prompts}
+                value={defaultPromptName}
+                icon={<PromptsIcon />}
+                onClick={() => openPage('prompts')}
+              />
               <Row
                 label={language}
                 value={languageLabel}
@@ -796,9 +921,9 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
               ) : null}
               <BalanceCard variant="android" />
               <Row
-                label={labels.advanced}
-                value={chatConfig.model}
-                onClick={() => openPage('advanced')}
+                label={labels.models}
+                value={activeModelLabel}
+                onClick={() => openPage('models')}
               />
               <Row
                 label={tr('开放平台', 'Open platform')}
@@ -814,10 +939,58 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             </p>
           </>
         ) : null}
-        {screen === 'advanced' ? (
-          <Group>
-            <AdvancedApiSettings onSave={back} />
-          </Group>
+        {screen === 'models' ? (
+          <ModelProviderListView
+            variant="android"
+            onAdd={() => openPage('modelProviderAdd')}
+            onSelectProvider={(id) => {
+              setSelectedProviderId(id)
+              openPage('modelProviderDetail')
+            }}
+          />
+        ) : null}
+        {screen === 'modelProviderAdd' ? (
+          <ModelProviderAddView
+            variant="android"
+            formId="android-model-provider-add-form"
+            onSaved={(id) => {
+              setSelectedProviderId(id)
+              openPage('modelProviderDetail')
+            }}
+          />
+        ) : null}
+        {screen === 'modelProviderDetail' ? (
+          <ModelProviderDetailView
+            variant="android"
+            providerId={selectedProviderId}
+            onManageModels={() => openPage('modelManage')}
+            onDeleted={back}
+          />
+        ) : null}
+        {screen === 'modelManage' ? (
+          <ModelManageView variant="android" providerId={selectedProviderId} />
+        ) : null}
+        {screen === 'prompts' ? (
+          <SystemPromptListView
+            variant="android"
+            onCreate={() => {
+              setEditingPromptId(null)
+              openPage('promptEdit')
+            }}
+            onEdit={(id) => {
+              setEditingPromptId(id)
+              openPage('promptEdit')
+            }}
+          />
+        ) : null}
+        {screen === 'promptEdit' ? (
+          <SystemPromptEditView
+            variant="android"
+            presetId={editingPromptId}
+            formId="android-prompt-edit-form"
+            onSaved={back}
+            onDeleted={back}
+          />
         ) : null}
         {screen === 'data' ? (
           <>

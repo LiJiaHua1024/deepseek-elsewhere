@@ -617,20 +617,18 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         <div className={styles.functionRow}>
           {/* 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
           <div ref={togglesRef} className={styles.toggles}>
-            {customEndpoint ? null : (
-              <Tooltip content={t('deactivatedThinkTooltip')}>
-                <button
-                  type="button"
-                  className={clsx(styles.toggle, thinking && styles.selected)}
-                  aria-label={t('thinkingSwitch')}
-                  aria-pressed={thinking}
-                  onClick={() => setThinking(!thinking)}
-                >
-                  <IconThinkOutline14 />
-                  <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-                </button>
-              </Tooltip>
-            )}
+            <Tooltip content={t('deactivatedThinkTooltip')}>
+              <button
+                type="button"
+                className={clsx(styles.toggle, thinking && styles.selected)}
+                aria-label={t('thinkingSwitch')}
+                aria-pressed={thinking}
+                onClick={() => setThinking(!thinking)}
+              >
+                <IconThinkOutline14 />
+                <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
+              </button>
+            </Tooltip>
             <Tooltip content={t('deactivatedSearchTooltip')}>
               <button
                 type="button"

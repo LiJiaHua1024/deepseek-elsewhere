@@ -182,13 +182,30 @@ export const openAIRequest = (
         ? { tools: serializedClientTools }
         : {}),
   }
+  const omitSampling = deepSeek && body.thinking.type === 'enabled'
+  const samplingFields = {
+    ...(!omitSampling && body.sampling?.temperature != null
+      ? { temperature: body.sampling.temperature }
+      : {}),
+    ...(!omitSampling && body.sampling?.topP != null ? { top_p: body.sampling.topP } : {}),
+  }
+  const thinkingEnabled = body.thinking.type === 'enabled'
+  const customEffort =
+    body.reasoningEffort && body.reasoningEffort !== 'auto' ? body.reasoningEffort : 'medium'
+  const deepSeekResponsesEffort =
+    body.reasoningEffort && body.reasoningEffort !== 'auto' ? body.reasoningEffort : 'high'
+
   if (format === 'chat') {
     return {
       ...common,
       messages: body.system ? [{ role: 'system', content: body.system }, ...messages] : messages,
       ...(deepSeek
         ? { max_tokens: body.max_tokens, thinking: body.thinking }
-        : { max_completion_tokens: body.max_tokens }),
+        : {
+            max_completion_tokens: body.max_tokens,
+            ...(thinkingEnabled ? { reasoning_effort: customEffort } : {}),
+          }),
+      ...samplingFields,
     }
   }
   return {
@@ -196,9 +213,21 @@ export const openAIRequest = (
     input: messages,
     instructions: body.system || undefined,
     max_output_tokens: body.max_tokens,
-    reasoning: deepSeek
-      ? { effort: body.thinking.type === 'enabled' ? 'high' : 'none' }
-      : undefined,
+    ...(deepSeek
+      ? {
+          reasoning: {
+            effort: thinkingEnabled ? deepSeekResponsesEffort : 'none',
+          },
+        }
+      : thinkingEnabled
+        ? {
+            reasoning: {
+              effort: customEffort,
+              summary: 'auto',
+            },
+          }
+        : {}),
+    ...samplingFields,
     store: false,
   }
 }

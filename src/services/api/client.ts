@@ -1,4 +1,5 @@
 import { android } from '../../app/android.js'
+import type { ReasoningEffort } from '../../elsewhere/models/types.js'
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import { CHAT_API_PATHS, type ChatConfig } from './chatConfig.js'
 import { createOpenAIStreamAdapter, openAIRequest, readOpenAIFrame } from './openaiChat.js'
@@ -152,11 +153,37 @@ const hasFile = (body: CreateMessageRequest) =>
       )
   )
 
-const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
-  const { clientTools, ...rest } = body
+export const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
+  const {
+    model,
+    max_tokens,
+    system,
+    messages,
+    thinking,
+    tools,
+    clientTools,
+    safety_check,
+    title,
+    sampling,
+  } = body
+  const base = {
+    model,
+    max_tokens,
+    system,
+    messages,
+    thinking,
+    ...(safety_check ? { safety_check } : {}),
+    ...(title ? { title } : {}),
+    ...(thinking.type !== 'enabled'
+      ? {
+          ...(sampling?.temperature != null ? { temperature: sampling.temperature } : {}),
+          ...(sampling?.topP != null ? { top_p: sampling.topP } : {}),
+        }
+      : {}),
+  }
   if (clientTools?.length) {
     return JSON.stringify({
-      ...rest,
+      ...base,
       tools: clientTools.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -165,7 +192,11 @@ const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
       stream: true,
     })
   }
-  return JSON.stringify({ ...rest, stream: true })
+  return JSON.stringify({
+    ...base,
+    ...(tools ? { tools } : {}),
+    stream: true,
+  })
 }
 
 const openMessageStream = (apiKey: string, body: CreateMessageRequest, signal: AbortSignal) =>
@@ -279,42 +310,87 @@ async function* readAnthropicStream(response: Response, signal: AbortSignal) {
   throw new ApiError('interrupted', '')
 }
 
+export const resolveAnthropicThinkingBudget = (effort?: ReasoningEffort): number => {
+  switch (effort) {
+    case 'low':
+      return 2_048
+    case 'high':
+      return 16_384
+    case 'medium':
+    case 'auto':
+    default:
+      return 8_192
+  }
+}
+
+export const isUnsupportedThinkingParamError = (error: unknown): boolean => {
+  if (!(error instanceof ApiError) || error.status !== 400) {
+    return false
+  }
+  const message = error.message
+  if (/(?:reasoning_effort|reasoning\.effort|budget_tokens)/i.test(message)) {
+    return true
+  }
+  return (
+    /\bthinking\b/i.test(message) &&
+    /(?:unsupported|unknown|unrecognized|invalid|not\s+(?:allowed|supported|permitted|available)|extra|unexpected|disable|param|field|argument)/i.test(
+      message
+    )
+  )
+}
+
 export const customMessagesRequest = ({
   model,
   system,
   messages,
   max_tokens,
   clientTools,
-}: CreateMessageRequest) => ({
-  model,
-  system: system || undefined,
-  max_tokens,
-  messages: messages.flatMap((message): CreateMessageRequest['messages'] => {
-    if (message.role === 'latest_reminder') {
-      return []
-    }
-    if (message.role === 'assistant') {
-      const content = message.content.filter((block) => {
-        if (block.type === 'text' || block.type === 'tool_use') {
-          return true
-        }
-        return block.type === 'thinking' && Boolean(block.signature)
-      })
-      return content.length ? [{ ...message, content }] : []
-    }
-    return [message]
-  }),
-  ...(clientTools?.length
-    ? {
-        tools: clientTools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          input_schema: tool.inputSchema,
-        })),
+  thinking,
+  reasoningEffort,
+  sampling,
+}: CreateMessageRequest) => {
+  const thinkingEnabled = thinking.type === 'enabled'
+  const budgetTokens = resolveAnthropicThinkingBudget(reasoningEffort)
+  const resolvedMaxTokens = thinkingEnabled
+    ? Math.max(max_tokens, budgetTokens + 4_096)
+    : max_tokens
+  return {
+    model,
+    system: system || undefined,
+    max_tokens: resolvedMaxTokens,
+    messages: messages.flatMap((message): CreateMessageRequest['messages'] => {
+      if (message.role === 'latest_reminder') {
+        return []
       }
-    : {}),
-  stream: true,
-})
+      if (message.role === 'assistant') {
+        const content = message.content.filter((block) => {
+          if (block.type === 'text' || block.type === 'tool_use') {
+            return true
+          }
+          return block.type === 'thinking' && Boolean(block.signature)
+        })
+        return content.length ? [{ ...message, content }] : []
+      }
+      return [message]
+    }),
+    ...(thinkingEnabled
+      ? { thinking: { type: 'enabled' as const, budget_tokens: budgetTokens } }
+      : {
+          ...(sampling?.temperature != null ? { temperature: sampling.temperature } : {}),
+          ...(sampling?.topP != null ? { top_p: sampling.topP } : {}),
+        }),
+    ...(clientTools?.length
+      ? {
+          tools: clientTools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            input_schema: tool.inputSchema,
+          })),
+        }
+      : {}),
+    stream: true,
+  }
+}
 
 type NativeChatEvent = { id: string } & (
   | { type: 'headers'; status: number; mime: string }
@@ -428,37 +504,65 @@ async function* streamCompatibleMessage(
         : openAIRequest(format, requestBody, deepSeek)
     )
   signal.throwIfAborted()
-  const native =
-    android && !deepSeek ? openAndroidChat(android, config, serialize(body), signal) : undefined
+  let activeNative: ReturnType<typeof openAndroidChat> | undefined
+  const send = (requestBody: CreateMessageRequest) =>
+    request(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(format === 'messages'
+          ? {
+              'anthropic-version': '2023-06-01',
+              ...(apiKey ? { 'x-api-key': apiKey } : {}),
+              ...(new URL(endpoint).hostname === 'api.anthropic.com'
+                ? { 'anthropic-dangerous-direct-browser-access': 'true' }
+                : {}),
+            }
+          : apiKey
+            ? { Authorization: `Bearer ${apiKey}` }
+            : {}),
+      },
+      body: serialize(requestBody),
+      credentials: 'omit',
+      redirect: 'error',
+      signal,
+    })
+
+  const openAttempt = async (requestBody: CreateMessageRequest): Promise<Response> => {
+    if (android && !deepSeek) {
+      const attempt = openAndroidChat(android, config, serialize(requestBody), signal)
+      activeNative = attempt
+      const res = await attempt.response
+      if (!res.ok) {
+        const error = await readErrorResponse(res, 'http', `HTTP ${res.status}`)
+        attempt.close()
+        if (activeNative === attempt) {
+          activeNative = undefined
+        }
+        throw error
+      }
+      return res
+    }
+    return deepSeek ? withDeepSeekExtensionsFallback(requestBody, send) : send(requestBody)
+  }
+
   try {
-    const send = (requestBody: CreateMessageRequest) =>
-      request(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-          ...(format === 'messages'
-            ? {
-                'anthropic-version': '2023-06-01',
-                ...(apiKey ? { 'x-api-key': apiKey } : {}),
-                ...(new URL(endpoint).hostname === 'api.anthropic.com'
-                  ? { 'anthropic-dangerous-direct-browser-access': 'true' }
-                  : {}),
-              }
-            : apiKey
-              ? { Authorization: `Bearer ${apiKey}` }
-              : {}),
-        },
-        body: serialize(requestBody),
-        credentials: 'omit',
-        redirect: 'error',
-        signal,
-      })
-    const response = native
-      ? await native.response
-      : deepSeek
-        ? await withDeepSeekExtensionsFallback(body, send)
-        : await send(body)
+    let response: Response
+    try {
+      response = await openAttempt(body)
+    } catch (error) {
+      if (
+        !deepSeek &&
+        body.thinking.type === 'enabled' &&
+        !signal.aborted &&
+        isUnsupportedThinkingParamError(error)
+      ) {
+        response = await openAttempt({ ...body, thinking: { type: 'disabled' } })
+      } else {
+        throw error
+      }
+    }
     if (!response.ok) {
       throw await readErrorResponse(response, 'http', `HTTP ${response.status}`)
     }
@@ -495,6 +599,6 @@ async function* streamCompatibleMessage(
       yield event
     }
   } finally {
-    native?.close()
+    activeNative?.close()
   }
 }

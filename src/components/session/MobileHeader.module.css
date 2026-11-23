@@ -32,8 +32,14 @@
 }
 
 [data-android] .header {
-  height: 52px;
-  padding: 0 0 4.4444px 3.2889px;
+  min-height: 52px;
+  height: auto;
+  padding: 2px 4px 4px 3.2889px;
+}
+
+.balanceSpacer {
+  flex-shrink: 0;
+  width: var(--ds-control-height-xl, 44px);
 }
 
 [data-android] .menu svg {
@@ -43,7 +49,7 @@
 }
 
 [data-android] .sound {
-  margin-left: auto;
+  margin-left: 0;
   margin-right: 4.5px;
 
   svg {

@@ -63,6 +63,7 @@ public final class MainActivity extends Activity {
     private FrameLayout frame;
     private ApiKeyStore keys;
     private ApiKeyStore chatConfig;
+    private ApiKeyStore providerSecrets;
     private final CustomChatTransport customChat = new CustomChatTransport();
     private final NativeHttpTransport nativeHttp = new NativeHttpTransport();
     private final NativeHttpStreamTransport nativeHttpStream = new NativeHttpStreamTransport();
@@ -96,6 +97,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         keys = new ApiKeyStore(this);
         chatConfig = new ApiKeyStore(this, "custom-chat");
+        providerSecrets = new ApiKeyStore(this, "provider-secrets");
         pyodideStore = new PyodideRuntimeStore(this);
         profilePreferences = getSharedPreferences("account_profile", MODE_PRIVATE);
         recentPhotos = new RecentPhotos(getContentResolver());
@@ -558,6 +560,12 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean writeChatConfig(String value) { return chatConfig.write(value); }
+
+        @JavascriptInterface
+        public String readProviderSecrets() { return providerSecrets.read(); }
+
+        @JavascriptInterface
+        public boolean writeProviderSecrets(String value) { return providerSecrets.write(value); }
 
         @JavascriptInterface
         public String beginChatRequest(String endpoint, String format, String body) {

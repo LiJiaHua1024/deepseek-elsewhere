@@ -30,7 +30,26 @@ import { mcpClient } from '../../elsewhere/mcp/protocol.js'
 import { buildActiveClientTools, buildActiveExtraTools } from '../../elsewhere/tools/builtin.js'
 import { clearSessionToolApprovals, requestToolConfirmation } from '../../elsewhere/tools/confirmation.js'
 import { runClientToolLoop } from '../../elsewhere/tools/loop.js'
-import { injectLocalDateTime } from '../../elsewhere/tools/systemTime.js'
+import {
+  getActiveModelContextWindow,
+  syncActiveModelForSession,
+  useModelProviders,
+} from '../../elsewhere/models/config.js'
+import {
+  consumeDraftSessionConfig,
+  resetDraftSessionConfig,
+} from '../../elsewhere/models/sessionDrawerState.js'
+import type {
+  ActiveModelRef,
+  ReasoningEffort,
+  SamplingParams,
+} from '../../elsewhere/models/types.js'
+import {
+  buildRequestSystemPrompt,
+  resolveEffectivePrompt,
+  useSystemPrompts,
+} from '../../elsewhere/prompts/config.js'
+import type { SessionPromptOverride } from '../../elsewhere/prompts/types.js'
 import {
   activateBranch,
   appendBranch,
@@ -339,7 +358,7 @@ const createReply = (): AssistantMessage => {
     role: 'assistant',
     createdAt: Date.now(),
     model: chatConfig.model || DEFAULT_CHAT_MODEL,
-    thinking: !customEndpoint && thinking,
+    thinking,
     search,
     prefix: !customEndpoint && chatConfig.format === 'messages',
     status: 'pending',
@@ -431,6 +450,9 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
           : synced
       touchSession(id)
       set((state) => ({ sessionCache: { ...state.sessionCache, [id]: session } }))
+      if (get().activeId === id && session.modelRef) {
+        syncActiveModelForSession(session.modelRef)
+      }
       if (session !== stored) {
         persist(id)
       }
@@ -650,6 +672,7 @@ export const newChat = () => {
     }
     mcpClient.closeAllLegacyStreams()
     cancelMessageEdit()
+    resetDraftSessionConfig()
     set({ activeId: null, pendingJump: null })
     trimSessionCache()
   }
@@ -664,6 +687,10 @@ export const selectSession = (id: string) => {
     }
     cancelMessageEdit()
     touchSession(id)
+    const cached = getSession(id)
+    if (cached?.modelRef) {
+      syncActiveModelForSession(cached.modelRef)
+    }
     set({ activeId: id, pendingJump: null })
     void ensureSessionLoaded(id)
     trimSessionCache()
@@ -688,6 +715,9 @@ export const selectSessionMessage = (sessionId: string, messageId: string) => {
   touchSession(sessionId)
   const nonce = ++jumpSequence
   const cached = getSession(sessionId)
+  if (cached?.modelRef) {
+    syncActiveModelForSession(cached.modelRef)
+  }
   if (cached && !getStreamController(sessionId)) {
     const activated = activateBranch(cached, messageId)
     if (activated !== cached) {
@@ -757,6 +787,44 @@ export const renameSession = (id: string, title: string) => {
     titleRequests.delete(controller)
   }
   writeSessionTitle(id, title, true)
+}
+
+export const updateSessionModelRef = (sessionId: string, modelRef: ActiveModelRef) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => ({ ...session, modelRef }))
+  persist(sessionId)
+}
+
+export const updateSessionPromptOverride = (
+  sessionId: string,
+  promptOverride: SessionPromptOverride
+) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => ({ ...session, promptOverride }))
+  persist(sessionId)
+}
+
+export const updateSessionReasoningEffort = (
+  sessionId: string,
+  reasoningEffort: ReasoningEffort
+) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => ({ ...session, reasoningEffort }))
+  persist(sessionId)
+}
+
+export const updateSessionSampling = (sessionId: string, sampling: SamplingParams) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => ({ ...session, sampling }))
+  persist(sessionId)
 }
 
 /**
@@ -871,6 +939,7 @@ export const sendMessage = (targetSessionId: string | null) => {
     return false
   }
   if (sessionId === null) {
+    const draftConfig = consumeDraftSessionConfig()
     const session: Session = {
       id: createId(),
       title: '',
@@ -878,6 +947,10 @@ export const sendMessage = (targetSessionId: string | null) => {
       updatedAt: now,
       messages: [],
       rootMessageId: null,
+      modelRef: useModelProviders.getState().activeModel,
+      promptOverride: draftConfig.promptOverride,
+      reasoningEffort: draftConfig.reasoningEffort,
+      sampling: draftConfig.sampling,
     }
     sessionId = session.id
     touchSession(session.id)
@@ -904,6 +977,7 @@ export const sendMessage = (targetSessionId: string | null) => {
   updateSession(sessionId, (session) => ({
     ...appendBranch(session, history.at(-1)?.id ?? null, [question, reply]),
     title: session.title || (files.length === 0 && SIMPLE_ARITHMETIC.test(text) ? text.trim() : ''),
+    modelRef: session.modelRef ?? useModelProviders.getState().activeModel,
     updatedAt: now,
   }))
   appendPendingFiles(sessionId, files)
@@ -1391,7 +1465,6 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     ? {
         ...initial,
         model: chatConfig.model || DEFAULT_CHAT_MODEL,
-        thinking: false,
         prefix: false,
       }
     : initial
@@ -1409,7 +1482,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   const initialOutputTokens = custom ? CUSTOM_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS
   const minOutputReserve = custom ? CUSTOM_OUTPUT_TOKENS : MIN_OUTPUT_RESERVE
   const fallbackOutputTokens = custom ? 1_024 : initial.thinking ? 32_768 : 8_192
-  const window = custom ? CUSTOM_CONTEXT_WINDOW : undefined
+  const modelWindow = getActiveModelContextWindow()
+  const window = custom ? (modelWindow ?? CUSTOM_CONTEXT_WINDOW) : modelWindow
   const windowLimit = window ?? WINDOW_TOKENS
   const tokenScale = estimateBranchScale(
     request.history,
@@ -1564,12 +1638,26 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
               extraTools: activeExtraTools,
             })
           : []
+        const activeSession = getSession(sessionId)
+        const { presets, defaultPresetId } = useSystemPrompts.getState()
+        const { preset } = resolveEffectivePrompt(
+          presets,
+          defaultPresetId,
+          activeSession?.promptOverride
+        )
+        const system = buildRequestSystemPrompt({
+          customEndpoint: custom,
+          officialDefaultPrompt: SYSTEM_PROMPT,
+          effectivePromptContent: preset?.content ?? '',
+        })
         const body: CreateMessageRequest = {
           model: requestModel,
           max_tokens: requestMaxOutput,
-          system: custom ? injectLocalDateTime('') : SYSTEM_PROMPT,
+          system,
           messages,
           thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
+          reasoningEffort: activeSession?.reasoningEffort ?? 'auto',
+          sampling: activeSession?.sampling,
           safety_check: SAFETY_CHECK,
           ...(useExternalTools
             ? activeClientTools.length > 0
