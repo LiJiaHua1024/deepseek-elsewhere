@@ -27,7 +27,19 @@ import {
 } from '../../elsewhere/title.js'
 import { getSearchToolsRuntimeConfig } from '../../elsewhere/search/config.js'
 import { mcpClient } from '../../elsewhere/mcp/protocol.js'
-import { buildActiveClientTools, buildActiveExtraTools } from '../../elsewhere/tools/builtin.js'
+import {
+  beginBackgroundStream,
+  createStreamFlushController,
+  deriveStreamPhase,
+  finishBackgroundStream,
+  updateBackgroundStream,
+  type StreamFlushController,
+} from '../../elsewhere/keepAlive.js'
+import {
+  buildActiveClientTools,
+  buildActiveExtraTools,
+  countActiveExtraTools,
+} from '../../elsewhere/tools/builtin.js'
 import { clearSessionToolApprovals, requestToolConfirmation } from '../../elsewhere/tools/confirmation.js'
 import { runClientToolLoop } from '../../elsewhere/tools/loop.js'
 import {
@@ -206,7 +218,7 @@ const loadOriginalFile = async (sessionId: string, id: string) =>
   pendingFiles.get(sessionId)?.find((file) => file.id === id)?.blob ?? db.loadFile(id)
 const deletingSessions = new Set<string>()
 const deletionTasks = new Set<Promise<boolean>>()
-const streamFlushes = new Map<string, () => void>()
+const streamFlushes = new Map<string, StreamFlushController>()
 let accessSequence = 0
 let jumpSequence = 0
 let historyEpoch = 0
@@ -326,9 +338,10 @@ export const bindChatPersistence = () => {
     if (get().importingHistory) {
       return
     }
-    for (const [id, flush] of streamFlushes) {
-      flush()
+    for (const [id, controller] of streamFlushes) {
+      controller.flushNow(false)
       persist(id)
+      controller.markPersisted()
     }
     for (const id of unsavedSessions) {
       if (!streamFlushes.has(id)) {
@@ -339,6 +352,10 @@ export const bindChatPersistence = () => {
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
       save()
+    } else if (document.visibilityState === 'visible') {
+      for (const controller of streamFlushes.values()) {
+        controller.flushIfDirty()
+      }
     }
   }
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -745,6 +762,7 @@ export const clearPendingJump = (nonce?: number) => {
 }
 
 const writeSessionTitle = (id: string, title: string, reportError = true) => {
+  updateBackgroundStream(id, { title })
   if (getSession(id)) {
     updateSession(id, (session) => ({ ...session, title }))
     persist(id)
@@ -1461,6 +1479,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     titleRequests.add(controller)
   }
   set((state) => ({ streaming: { ...state.streaming, [sessionId]: controller } }))
+  const isLongTask = Boolean(initial.thinking || initial.search || countActiveExtraTools() > 0)
+  beginBackgroundStream(sessionId, { title: getSession(sessionId)?.title ?? '', isLongTask })
   let reply = custom
     ? {
         ...initial,
@@ -1468,13 +1488,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         prefix: false,
       }
     : initial
-  let frame = 0
-  const flush = () => {
-    cancelAnimationFrame(frame)
-    frame = 0
-    updateReply(sessionId, reply)
-  }
-  streamFlushes.set(sessionId, flush)
+  const flushController = createStreamFlushController({
+    onFlush: () => updateReply(sessionId, reply),
+    onPersist: () => persist(sessionId),
+  })
+  streamFlushes.set(sessionId, flushController)
 
   const signal = controller.signal
   const summarize = createContextSummarizer(apiKey, signal, chatConfig)
@@ -1591,6 +1609,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
+        flushController.markPersisted()
         const activeQuestion = reducedInput?.question ?? prepared.question
         const activePrefix = reducedInput ? reducedInput.prefix : prepared.prefix
         messages = toRequestMessages(
@@ -1698,11 +1717,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
               }),
             onReplyUpdate: (nextReply, immediate) => {
               reply = nextReply
-              if (immediate || document.visibilityState === 'hidden') {
-                flush()
-              } else {
-                frame ||= requestAnimationFrame(flush)
-              }
+              updateBackgroundStream(sessionId, deriveStreamPhase(nextReply))
+              flushController.schedule(Boolean(immediate))
             },
             onContentReceived: () => {
               receivedContent = true
@@ -1717,6 +1733,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
                 updateSession(sessionId, (session) =>
                   session.title ? session : { ...session, title }
                 )
+                updateBackgroundStream(sessionId, { title })
                 titleRequests.delete(controller)
               }
             },
@@ -1742,14 +1759,14 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             const title = event.delta.title.trim()
             cancelSessionTitleTask(sessionId)
             updateSession(sessionId, (session) => (session.title ? session : { ...session, title }))
+            updateBackgroundStream(sessionId, { title })
             titleRequests.delete(controller)
           }
           reply = applyEvent(reply, event, Date.now(), blockIndexes)
-          if (document.visibilityState === 'hidden') {
-            flush()
-          } else {
-            frame ||= requestAnimationFrame(flush)
-          }
+          updateBackgroundStream(sessionId, deriveStreamPhase(reply))
+          const critical =
+            event.type === 'content_block_start' || event.type === 'content_block_stop'
+          flushController.schedule(critical)
         }
         reply = settleReply(reply, 'done', Date.now())
         break
@@ -1860,7 +1877,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       Boolean(activeSession && !activeSession.title)
     titleRequests.delete(controller)
     streamFlushes.delete(sessionId)
-    cancelAnimationFrame(frame)
+    flushController.cancel()
     updateReply(sessionId, reply)
     set((state) => ({
       streaming: Object.fromEntries(
@@ -1868,6 +1885,12 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+    const finalOutcome =
+      reply.status === 'done' ? 'done' : reply.status === 'error' ? 'error' : 'stopped'
+    finishBackgroundStream(sessionId, {
+      outcome: finalOutcome,
+      title: getSession(sessionId)?.title ?? activeSession?.title ?? '',
+    })
     if (!custom && reply.status === 'done') {
       notifyOfficialReplyFinished()
     }

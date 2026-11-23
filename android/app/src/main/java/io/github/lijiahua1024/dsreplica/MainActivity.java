@@ -3,6 +3,7 @@ package io.github.lijiahua1024.dsreplica;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Intent;
@@ -17,6 +18,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.view.View;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -59,6 +62,7 @@ public final class MainActivity extends Activity {
     private static final int PHOTOS = 3;
     private static final int CAMERA = 4;
     private static final int EXPORT_HISTORY = 5;
+    private static final int NOTIFICATIONS = 7;
     private WebView webView;
     private FrameLayout frame;
     private ApiKeyStore keys;
@@ -82,6 +86,9 @@ public final class MainActivity extends Activity {
     private NativeRecorder recorder;
     private AppUpdater updater;
     private boolean backPreviewEnabled;
+    private volatile boolean isForeground;
+    private boolean webPageReady;
+    private String pendingOpenSessionId;
     private final InAppBackCallback inAppBack = new InAppBackCallback(this, this::handleBack,
         this::reportBackPreview);
     private final ExecutorService photoExecutor = Executors.newSingleThreadExecutor();
@@ -148,6 +155,8 @@ public final class MainActivity extends Activity {
         updater = new AppUpdater(this, status ->
             webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('android-update', {detail: "
                 + status + "}))", null));
+        StreamKeepAliveService.setStopListener(this::dispatchStopStream);
+        handleOpenSessionIntent(getIntent());
         webView.loadUrl(HOME);
     }
 
@@ -198,6 +207,7 @@ public final class MainActivity extends Activity {
     private final class AppPage extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            webPageReady = false;
             backPreviewEnabled = false;
             inAppBack.setEnabled(false);
         }
@@ -205,6 +215,12 @@ public final class MainActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            webPageReady = true;
+            if (pendingOpenSessionId != null) {
+                String sessionId = pendingOpenSessionId;
+                pendingOpenSessionId = null;
+                dispatchOpenSession(sessionId);
+            }
             if (accessibility != null && accessibility.isEnabled()) {
                 primeAccessibility();
             }
@@ -454,9 +470,25 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOpenSessionIntent(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        isForeground = true;
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         updater.resume();
+        if (webView != null && !isDestroyed()) {
+            webView.evaluateJavascript("window.dispatchEvent(new Event('android-resume'))", null);
+        }
     }
 
     @Override
@@ -467,6 +499,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onStop() {
+        isForeground = false;
         recorder.finish(false);
         webView.evaluateJavascript("window.dispatchEvent(new Event('android-recording-interrupted'))", null);
         super.onStop();
@@ -474,6 +507,8 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        StreamKeepAliveService.setStopListener(null);
+        StreamKeepAliveService.stopIfRunning(this);
         customChat.close();
         nativeHttp.close();
         nativeHttpStream.close();
@@ -847,6 +882,158 @@ public final class MainActivity extends Activity {
                 }
                 webView.setSystemGestureExclusionRects(rects);
             });
+        }
+
+        @JavascriptInterface
+        public void syncKeepAlive(String payloadJson) {
+            boolean enabled = false;
+            String sessionsJson = "[]";
+            int activeCount = 0;
+            boolean zh = true;
+            if (payloadJson != null && !payloadJson.isEmpty()) {
+                try {
+                    JSONObject payload = new JSONObject(payloadJson);
+                    enabled = payload.optBoolean("enabled", false);
+                    JSONArray sessions = payload.optJSONArray("sessions");
+                    if (sessions != null) {
+                        sessionsJson = sessions.toString();
+                        activeCount = sessions.length();
+                    }
+                    String locale = payload.optString("locale", "");
+                    zh = locale.isEmpty() || locale.startsWith("zh");
+                } catch (JSONException ignored) {
+                }
+            }
+            final boolean finalEnabled = enabled;
+            final String finalSessionsJson = sessionsJson;
+            final int finalCount = activeCount;
+            final boolean finalZh = zh;
+            runOnUiThread(() -> {
+                if (isDestroyed()) return;
+                updateRendererPriority(finalEnabled && finalCount > 0);
+                StreamKeepAliveService.sync(
+                    MainActivity.this,
+                    finalEnabled,
+                    finalSessionsJson,
+                    finalCount,
+                    finalZh
+                );
+            });
+        }
+
+        @JavascriptInterface
+        public void notifyBackgroundEvent(String payloadJson) {
+            if (isForeground || !hasNotificationPermission()) return;
+            StreamKeepAliveService.showBackgroundAlert(MainActivity.this, payloadJson);
+        }
+
+        @JavascriptInterface
+        public void clearSessionNotification(String sessionId) {
+            StreamKeepAliveService.clearSessionNotification(MainActivity.this, sessionId);
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT < 33) return;
+            runOnUiThread(() -> {
+                if (isDestroyed() || granted(Manifest.permission.POST_NOTIFICATIONS)) return;
+                requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATIONS
+                );
+            });
+        }
+
+        @JavascriptInterface
+        public boolean areNotificationsEnabled() {
+            return hasNotificationPermission();
+        }
+
+        @JavascriptInterface
+        public boolean isIgnoringBatteryOptimizations() {
+            PowerManager pm = getSystemService(PowerManager.class);
+            return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+        }
+
+        @JavascriptInterface
+        public void openBatteryOptimizationSettings() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                } catch (ActivityNotFoundException | SecurityException ignored) {
+                    try {
+                        startActivity(new Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", getPackageName(), null)
+                        ));
+                    } catch (ActivityNotFoundException ignoredAgain) {
+                    }
+                }
+            });
+        }
+    }
+
+    private boolean hasNotificationPermission() {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        boolean channelEnabled = manager == null || manager.areNotificationsEnabled();
+        if (!channelEnabled) return false;
+        return Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS);
+    }
+
+    private void updateRendererPriority(boolean important) {
+        if (webView == null || isDestroyed()) return;
+        if (important) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        } else {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true);
+        }
+    }
+
+    private void handleOpenSessionIntent(Intent intent) {
+        if (intent == null) return;
+        String sessionId = intent.getStringExtra(StreamKeepAliveService.EXTRA_SESSION_ID);
+        if (sessionId == null || sessionId.isEmpty()) return;
+        StreamKeepAliveService.clearSessionNotification(this, sessionId);
+        if (webPageReady && webView != null && !isDestroyed()) {
+            dispatchOpenSession(sessionId);
+        } else {
+            pendingOpenSessionId = sessionId;
+        }
+    }
+
+    private void dispatchOpenSession(String sessionId) {
+        if (webView == null || isDestroyed() || sessionId == null || sessionId.isEmpty()) return;
+        try {
+            JSONObject detail = new JSONObject().put("sessionId", sessionId);
+            String quotedId = JSONObject.quote(sessionId);
+            String detailJson = detail.toString();
+            runOnUiThread(() -> {
+                if (isDestroyed() || webView == null) return;
+                webView.evaluateJavascript(
+                    "window.__elsewherePendingOpenSession=" + quotedId
+                    + ";window.dispatchEvent(new CustomEvent('android-open-session',{detail:"
+                    + detailJson + "}))",
+                    null
+                );
+            });
+        } catch (JSONException ignored) {
+        }
+    }
+
+    private void dispatchStopStream(String sessionId) {
+        try {
+            JSONObject detail = new JSONObject();
+            detail.put("sessionId", sessionId == null ? JSONObject.NULL : sessionId);
+            String detailJson = detail.toString();
+            runOnUiThread(() -> {
+                if (isDestroyed() || webView == null) return;
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('android-stop-stream',{detail:"
+                    + detailJson + "}))",
+                    null
+                );
+            });
+        } catch (JSONException ignored) {
         }
     }
 

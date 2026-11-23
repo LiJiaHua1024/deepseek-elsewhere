@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
+import { clearSessionNotification } from '../keepAlive.js'
 import type { ClientToolDefinition } from './types.js'
 
 export type ToolConfirmationDecision = 'deny' | 'allow_once' | 'allow_session'
@@ -75,6 +76,7 @@ export const resolveToolConfirmation = (id: string, decision: ToolConfirmationDe
     return
   }
   removeFromQueue(id)
+  clearSessionNotification(item.sessionId)
   const resolve = resolvers.get(id)
   resolvers.delete(id)
 

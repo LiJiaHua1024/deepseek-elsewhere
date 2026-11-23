@@ -69,7 +69,13 @@ import {
   McpServerDetailView,
   McpServerListView,
 } from '../../elsewhere/mcp/McpSettingsViews.js'
-import { setShowUsageInChat, useElsewherePrefs } from '../../elsewhere/preferences.js'
+import {
+  setBackgroundKeepAlive,
+  setBackgroundNotify,
+  setNotificationPermissionAsked,
+  setShowUsageInChat,
+  useElsewherePrefs,
+} from '../../elsewhere/preferences.js'
 import styles from './AndroidSettings.module.css'
 
 const appVersion = document.querySelector<HTMLMetaElement>(
@@ -232,6 +238,53 @@ const VoiceIcon = () => (
   </svg>
 )
 
+const BackgroundKeepAliveIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9.7 2.5 4.8 9.8h4.1L8.3 15.5l4.9-7.3H9.1l.6-5.7Z" />
+  </svg>
+)
+
+const NotificationBellIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M13.2 12.2H4.8c.7-.9 1.1-1.9 1.1-3.3V7.5a3.1 3.1 0 1 1 6.2 0v1.4c0 1.4.4 2.4 1.1 3.3Z" />
+    <path d="M7.6 14.3a1.6 1.6 0 0 0 2.8 0" />
+  </svg>
+)
+
+const BatteryIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="2.6" y="5" width="11.2" height="8" rx="1.6" />
+    <path d="M15.4 7.4v3.2" />
+  </svg>
+)
+
 const Info = ({ glyph = 'i' }: { glyph?: string }) => <span className={styles.info}>{glyph}</span>
 
 const Group = ({
@@ -251,6 +304,7 @@ const Group = ({
 
 const Row = ({
   label,
+  subtitle,
   icon,
   value,
   onClick,
@@ -261,6 +315,7 @@ const Row = ({
   arrow = Boolean(onClick || href),
 }: {
   label: string
+  subtitle?: string
   icon?: ReactNode
   value?: string
   onClick?: () => void
@@ -273,7 +328,14 @@ const Row = ({
   const contents = (
     <>
       {icon ? <span className={styles.icon}>{icon}</span> : null}
-      <span className={styles.rowLabel}>{label}</span>
+      {subtitle ? (
+        <span className={styles.rowText}>
+          <span className={styles.rowLabel}>{label}</span>
+          <span className={styles.rowSubtitle}>{subtitle}</span>
+        </span>
+      ) : (
+        <span className={styles.rowLabel}>{label}</span>
+      )}
       {value ? <span className={styles.value}>{value}</span> : null}
       {control}
       {arrow ? (
@@ -283,9 +345,10 @@ const Row = ({
       ) : null}
     </>
   )
+  const multiline = subtitle ? '' : undefined
   if (href) {
     return (
-      <a className={styles.row} href={href}>
+      <a className={styles.row} data-multiline={multiline} href={href}>
         {contents}
       </a>
     )
@@ -295,6 +358,7 @@ const Row = ({
       <button
         type="button"
         className={styles.row}
+        data-multiline={multiline}
         data-danger={danger}
         disabled={disabled}
         onClick={onClick}
@@ -303,7 +367,11 @@ const Row = ({
       </button>
     )
   }
-  return <div className={styles.row}>{contents}</div>
+  return (
+    <div className={styles.row} data-multiline={multiline}>
+      {contents}
+    </div>
+  )
 }
 
 const Switch = ({
@@ -433,6 +501,14 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const sessions = useChatStore((state) => state.sessions.length)
   const editor = useApiKeyEditor()
   const showUsageInChat = useElsewherePrefs((state) => state.showUsageInChat)
+  const backgroundKeepAlive = useElsewherePrefs((state) => state.backgroundKeepAlive)
+  const backgroundNotify = useElsewherePrefs((state) => state.backgroundNotify)
+  const notificationPermissionAsked = useElsewherePrefs(
+    (state) => state.notificationPermissionAsked
+  )
+  const [ignoringBattery, setIgnoringBattery] = useState(
+    () => android?.isIgnoringBatteryOptimizations?.() ?? false
+  )
   const webFetchMode = useSearchToolsConfig((state) => state.webFetchMode)
   const [mcpServerId, setMcpServerId] = useState<string | null>(null)
   const selectedMcpServer = useMcpServers((state) =>
@@ -475,6 +551,26 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     window.addEventListener('android-update', onUpdate)
     setUpdate(JSON.parse(android.updateStatus()) as UpdateStatus)
     return () => window.removeEventListener('android-update', onUpdate)
+  }, [])
+
+  useEffect(() => {
+    if (!android?.isIgnoringBatteryOptimizations) {
+      return
+    }
+    const refreshBatteryStatus = () => {
+      if (document.visibilityState !== 'hidden') {
+        setIgnoringBattery(android?.isIgnoringBatteryOptimizations?.() ?? false)
+      }
+    }
+    refreshBatteryStatus()
+    document.addEventListener('visibilitychange', refreshBatteryStatus)
+    window.addEventListener('focus', refreshBatteryStatus)
+    window.addEventListener('android-resume', refreshBatteryStatus)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshBatteryStatus)
+      window.removeEventListener('focus', refreshBatteryStatus)
+      window.removeEventListener('android-resume', refreshBatteryStatus)
+    }
   }, [])
 
   const labels: Record<Page, string> = {
@@ -824,6 +920,58 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 icon={<IconGlobeLanguageOutline14 />}
                 onClick={() => openPage('tools')}
               />
+              {android ? (
+                <>
+                  <Row
+                    label={tr('后台持续生成', 'Background generation')}
+                    icon={<BackgroundKeepAliveIcon />}
+                    control={
+                      <Switch
+                        label={tr('后台持续生成', 'Background generation')}
+                        checked={backgroundKeepAlive}
+                        toggle={() => setBackgroundKeepAlive(!backgroundKeepAlive)}
+                      />
+                    }
+                  />
+                  <Row
+                    label={tr('后台完成时通知', 'Notify when finished in background')}
+                    subtitle={tr('含等待工具确认提醒', 'Includes tool confirmation alerts')}
+                    icon={<NotificationBellIcon />}
+                    control={
+                      <Switch
+                        label={tr('后台完成时通知', 'Notify when finished in background')}
+                        checked={backgroundNotify}
+                        toggle={() => {
+                          const next = !backgroundNotify
+                          setBackgroundNotify(next)
+                          if (!next || android?.areNotificationsEnabled?.() !== false) {
+                            return
+                          }
+                          if (!notificationPermissionAsked) {
+                            setNotificationPermissionAsked(true)
+                            android?.requestNotificationPermission?.()
+                          } else {
+                            showToast(
+                              tr(
+                                '请在系统设置中开启通知权限',
+                                'Enable notifications in system settings'
+                              )
+                            )
+                          }
+                        }}
+                      />
+                    }
+                  />
+                  <Row
+                    label={tr('电池优化', 'Battery optimization')}
+                    value={
+                      ignoringBattery ? tr('未限制', 'Unrestricted') : tr('系统默认', 'System default')
+                    }
+                    icon={<BatteryIcon />}
+                    onClick={() => android?.openBatteryOptimizationSettings?.()}
+                  />
+                </>
+              ) : null}
             </Group>
             <Group label={tr('语音', 'Voice')}>
               <Row

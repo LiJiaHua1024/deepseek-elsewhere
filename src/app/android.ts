@@ -66,6 +66,13 @@ type AndroidBridge = {
     endBottom: number,
     active: boolean
   ) => void
+  syncKeepAlive?: (payloadJson: string) => void
+  notifyBackgroundEvent?: (payloadJson: string) => void
+  clearSessionNotification?: (sessionId: string) => void
+  requestNotificationPermission?: () => void
+  areNotificationsEnabled?: () => boolean
+  isIgnoringBatteryOptimizations?: () => boolean
+  openBatteryOptimizationSettings?: () => void
 }
 
 export const android =

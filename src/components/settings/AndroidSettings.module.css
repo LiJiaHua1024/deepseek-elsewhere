@@ -139,6 +139,11 @@
   user-select: none;
 }
 
+.row[data-multiline] {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
 button.row:active,
 a.row:active,
 .back:active {
@@ -148,6 +153,20 @@ a.row:active,
 .rowLabel {
   flex: 1;
   min-width: 0;
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rowSubtitle {
+  color: var(--settings-muted);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .value,

@@ -15,6 +15,7 @@ import {
   initChat,
   retrySaveSessions,
   selectSession,
+  stopReply,
   useChatStore,
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
@@ -22,7 +23,11 @@ import { closeSearchPanel, useSearchPanel } from '../components/search/searchPan
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { ensureApiKey, useSettingsDialog } from '../components/settings/settingsDialogState.js'
+import {
+  closeSettings,
+  ensureApiKey,
+  useSettingsDialog,
+} from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { AndroidSettings } from '../components/settings/AndroidSettings.js'
 import { ApiKeyScreen } from '../components/settings/ApiKeyScreen.js'
@@ -42,6 +47,7 @@ import {
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useAndroidDrawerGesture } from '../components/sider/useAndroidDrawerGesture.js'
 import { SessionStatusSheet } from '../elsewhere/SessionStatusSheet.js'
+import { bindBackgroundKeepAlive, clearSessionNotification } from '../elsewhere/keepAlive.js'
 import { ModelSessionDrawer } from '../elsewhere/models/ModelSessionDrawer.js'
 import { ToolDetailSheet } from '../elsewhere/tools/ToolDetailSheet.js'
 import { ToolsDrawer } from '../elsewhere/tools/ToolsDrawer.js'
@@ -264,6 +270,34 @@ export const App = () => {
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
   useEffect(bindChatPersistence, [])
+  useEffect(() => {
+    if (!android) {
+      return
+    }
+    return bindBackgroundKeepAlive({
+      stopSession: stopReply,
+      stopAllSessions: () => {
+        for (const sessionId of Object.keys(useChatStore.getState().streaming)) {
+          stopReply(sessionId)
+        }
+      },
+      openSession: async (sessionId) => {
+        if (!useChatStore.getState().ready) {
+          await initChat()
+        }
+        closeSettings()
+        closeSearchPanel()
+        closeMobileSider()
+        selectSession(sessionId)
+      },
+      getActiveSessionId: () => useChatStore.getState().activeId,
+    })
+  }, [])
+  useEffect(() => {
+    if (android && activeId) {
+      clearSessionNotification(activeId)
+    }
+  }, [activeId])
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
