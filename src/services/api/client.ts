@@ -164,7 +164,6 @@ export const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
     clientTools,
     safety_check,
     title,
-    sampling,
   } = body
   const base = {
     model,
@@ -174,12 +173,6 @@ export const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
     thinking,
     ...(safety_check ? { safety_check } : {}),
     ...(title ? { title } : {}),
-    ...(thinking.type !== 'enabled'
-      ? {
-          ...(sampling?.temperature != null ? { temperature: sampling.temperature } : {}),
-          ...(sampling?.topP != null ? { top_p: sampling.topP } : {}),
-        }
-      : {}),
   }
   if (clientTools?.length) {
     return JSON.stringify({
@@ -347,7 +340,6 @@ export const customMessagesRequest = ({
   clientTools,
   thinking,
   reasoningEffort,
-  sampling,
 }: CreateMessageRequest) => {
   const thinkingEnabled = thinking.type === 'enabled'
   const budgetTokens = resolveAnthropicThinkingBudget(reasoningEffort)
@@ -375,10 +367,7 @@ export const customMessagesRequest = ({
     }),
     ...(thinkingEnabled
       ? { thinking: { type: 'enabled' as const, budget_tokens: budgetTokens } }
-      : {
-          ...(sampling?.temperature != null ? { temperature: sampling.temperature } : {}),
-          ...(sampling?.topP != null ? { top_p: sampling.topP } : {}),
-        }),
+      : {}),
     ...(clientTools?.length
       ? {
           tools: clientTools.map((tool) => ({

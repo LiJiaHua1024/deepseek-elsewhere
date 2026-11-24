@@ -6,7 +6,6 @@ import { useAndroidBackInterception } from '../../app/useAndroidBackInterception
 import { useIsMobile } from '../../app/viewport.js'
 import {
   IconCheckOutline16,
-  IconChevronDownOutline14,
   IconChevronRightOutline14,
   IconSearchOutline16,
 } from '../../components/base/icons.js'
@@ -15,7 +14,6 @@ import {
   updateSessionModelRef,
   updateSessionPromptOverride,
   updateSessionReasoningEffort,
-  updateSessionSampling,
   useChatStore,
 } from '../../services/chat/store.js'
 import { useSystemPrompts } from '../prompts/config.js'
@@ -30,12 +28,11 @@ import {
   closeModelDrawer,
   setDraftPromptOverride,
   setDraftReasoningEffort,
-  setDraftSampling,
   setModelDrawerTab,
   useDraftSessionConfig,
   useModelDrawer,
 } from './sessionDrawerState.js'
-import type { ReasoningEffort, SamplingParams } from './types.js'
+import type { ReasoningEffort } from './types.js'
 import styles from './ModelSessionDrawer.module.css'
 
 export const ModelSessionDrawer = () => {
@@ -69,7 +66,6 @@ const ModelSessionDrawerContent = () => {
   const bottomSheet = isMobile || Boolean(android)
   const tab = useModelDrawer((state) => state.tab)
   const [query, setQuery] = useState('')
-  const [samplingOpen, setSamplingOpen] = useState(false)
 
   const providers = useModelProviders((state) => state.providers)
   const activeModel = useModelProviders((state) => state.activeModel)
@@ -100,8 +96,6 @@ const ModelSessionDrawerContent = () => {
     activeId !== null ? (session?.promptOverride ?? { mode: 'follow' }) : draft.promptOverride
   const currentEffort: ReasoningEffort =
     activeId !== null ? (session?.reasoningEffort ?? 'auto') : draft.reasoningEffort
-  const currentSampling: SamplingParams =
-    activeId !== null ? (session?.sampling ?? {}) : draft.sampling
 
   const handlePromptChange = (override: SessionPromptOverride) => {
     if (activeId !== null) {
@@ -116,14 +110,6 @@ const ModelSessionDrawerContent = () => {
       updateSessionReasoningEffort(activeId, effort)
     } else {
       setDraftReasoningEffort(effort)
-    }
-  }
-
-  const handleSamplingChange = (next: SamplingParams) => {
-    if (activeId !== null) {
-      updateSessionSampling(activeId, next)
-    } else {
-      setDraftSampling(next)
     }
   }
 
@@ -153,19 +139,6 @@ const ModelSessionDrawerContent = () => {
     })
     .filter((group) => group.models.length > 0)
 
-  const hasCustomSampling =
-    currentSampling.temperature != null || currentSampling.topP != null
-  const samplingSummary = hasCustomSampling
-    ? [
-        currentSampling.temperature != null ? `T ${currentSampling.temperature.toFixed(1)}` : '',
-        currentSampling.topP != null ? `P ${currentSampling.topP.toFixed(2)}` : '',
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : zh
-      ? '跟随模型默认'
-      : 'Model default'
-
   return createPortal(
     <div
       className={clsx(styles.overlay, bottomSheet && styles.sheetOverlay)}
@@ -179,7 +152,7 @@ const ModelSessionDrawerContent = () => {
         className={clsx(styles.panel, bottomSheet && styles.sheet)}
         role="dialog"
         aria-modal="true"
-        aria-label={zh ? '模型与会话参数' : 'Model & Session Settings'}
+        aria-label={zh ? '模型与会话设置' : 'Model & Session Settings'}
       >
         {bottomSheet ? <div className={styles.handle} aria-hidden="true" /> : null}
 
@@ -201,7 +174,7 @@ const ModelSessionDrawerContent = () => {
               className={clsx(styles.segmentBtn, tab === 'prompt' && styles.segmentBtnActive)}
               onClick={() => setModelDrawerTab('prompt')}
             >
-              {zh ? '指令与参数' : 'Instructions & Params'}
+              {zh ? '指令与思考' : 'Instructions & Thinking'}
             </button>
           </div>
         </div>
@@ -366,90 +339,6 @@ const ModelSessionDrawerContent = () => {
                     )
                   })}
                 </div>
-              </div>
-
-              <div className={styles.card}>
-                <button
-                  type="button"
-                  className={styles.collapseHeader}
-                  aria-expanded={samplingOpen}
-                  onClick={() => setSamplingOpen((openState) => !openState)}
-                >
-                  <span className={styles.collapseTitle}>{zh ? '采样参数' : 'Sampling'}</span>
-                  <span className={styles.collapseRight}>
-                    <span>{samplingSummary}</span>
-                    <span className={clsx(styles.collapseArrow, samplingOpen && styles.collapseArrowOpen)}>
-                      <IconChevronDownOutline14 />
-                    </span>
-                  </span>
-                </button>
-                {samplingOpen ? (
-                  <div className={styles.samplingBody}>
-                    <div className={styles.sliderRow}>
-                      <div className={styles.sliderTop}>
-                        <span>Temperature</span>
-                        <span className={styles.sliderValue}>
-                          {currentSampling.temperature != null
-                            ? currentSampling.temperature.toFixed(1)
-                            : zh
-                              ? '默认'
-                              : 'Default'}
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        aria-label="Temperature"
-                        min={0}
-                        max={2}
-                        step={0.1}
-                        value={currentSampling.temperature ?? 1}
-                        className={styles.slider}
-                        onChange={(event) =>
-                          handleSamplingChange({
-                            ...currentSampling,
-                            temperature: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className={styles.sliderRow}>
-                      <div className={styles.sliderTop}>
-                        <span>Top-P</span>
-                        <span className={styles.sliderValue}>
-                          {currentSampling.topP != null
-                            ? currentSampling.topP.toFixed(2)
-                            : zh
-                              ? '默认'
-                              : 'Default'}
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        aria-label="Top-P"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={currentSampling.topP ?? 1}
-                        className={styles.slider}
-                        onChange={(event) =>
-                          handleSamplingChange({
-                            ...currentSampling,
-                            topP: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                    {hasCustomSampling ? (
-                      <button
-                        type="button"
-                        className={styles.resetButton}
-                        onClick={() => handleSamplingChange({ temperature: null, topP: null })}
-                      >
-                        {zh ? '恢复模型默认' : 'Reset to model default'}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
             </div>
           )}

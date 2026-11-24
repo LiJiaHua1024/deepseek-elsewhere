@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { SessionPromptOverride } from '../prompts/types.js'
-import type { ReasoningEffort, SamplingParams } from './types.js'
+import type { ReasoningEffort } from './types.js'
 
 export type ModelDrawerTab = 'model' | 'prompt'
 
@@ -25,13 +25,11 @@ export const setModelDrawerTab = (tab: ModelDrawerTab) =>
 export type DraftSessionConfig = {
   promptOverride: SessionPromptOverride
   reasoningEffort: ReasoningEffort
-  sampling: SamplingParams
 }
 
 const DEFAULT_DRAFT_CONFIG: DraftSessionConfig = {
   promptOverride: { mode: 'follow' },
   reasoningEffort: 'auto',
-  sampling: {},
 }
 
 export const useDraftSessionConfig = create<DraftSessionConfig>(() => ({
@@ -44,14 +42,10 @@ export const setDraftPromptOverride = (promptOverride: SessionPromptOverride) =>
 export const setDraftReasoningEffort = (reasoningEffort: ReasoningEffort) =>
   useDraftSessionConfig.setState({ reasoningEffort })
 
-export const setDraftSampling = (sampling: SamplingParams) =>
-  useDraftSessionConfig.setState({ sampling })
-
 export const resetDraftSessionConfig = () =>
   useDraftSessionConfig.setState({
     promptOverride: { mode: 'follow' },
     reasoningEffort: 'auto',
-    sampling: {},
   })
 
 export const consumeDraftSessionConfig = (): DraftSessionConfig => {

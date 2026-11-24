@@ -1,10 +1,15 @@
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
   align-items: center;
   flex-shrink: 0;
   box-sizing: border-box;
   height: 60px;
   padding: 12px 10px 4px;
+}
+
+.menu {
+  justify-self: start;
 }
 
 .title {
@@ -32,14 +37,25 @@
 }
 
 [data-android] .header {
+  grid-template-columns: minmax(93px, 1fr) minmax(0, auto) minmax(93px, 1fr);
   min-height: 52px;
   height: auto;
   padding: 2px 4px 4px 3.2889px;
 }
 
 .balanceSpacer {
+  justify-self: end;
   flex-shrink: 0;
   width: var(--ds-control-height-xl, 44px);
+}
+
+/* 网格第三列：右侧操作按钮组，靠右对齐并保持与左列等宽视觉平衡 */
+.rightActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  min-width: 0;
 }
 
 [data-android] .menu svg {

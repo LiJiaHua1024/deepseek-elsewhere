@@ -600,7 +600,6 @@ export const mergeSessions = (
     ...(local.modelRef ? { modelRef: local.modelRef } : {}),
     ...(local.promptOverride ? { promptOverride: local.promptOverride } : {}),
     ...(local.reasoningEffort ? { reasoningEffort: local.reasoningEffort } : {}),
-    ...(local.sampling ? { sampling: local.sampling } : {}),
   }
 
   return { session: mergedSession, changed: true, addedMessages, updatedMessages }

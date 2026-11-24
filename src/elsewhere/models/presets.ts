@@ -46,8 +46,8 @@ export const createDefaultProviders = (): ModelProviderConfig[] => [
         enabled: true,
       },
       {
-        id: 'deepseek-pro',
-        label: 'DeepSeek Pro',
+        id: 'deepseek-v4-pro',
+        label: 'DeepSeek V4 Pro',
         group: 'DeepSeek',
         enabled: true,
       },

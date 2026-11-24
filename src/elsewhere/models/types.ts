@@ -30,8 +30,3 @@ export type ActiveModelRef = {
 }
 
 export type ReasoningEffort = 'auto' | 'low' | 'medium' | 'high'
-
-export type SamplingParams = {
-  temperature?: number | null
-  topP?: number | null
-}

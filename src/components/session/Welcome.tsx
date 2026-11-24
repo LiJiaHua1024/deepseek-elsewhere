@@ -7,7 +7,6 @@ import {
   useAndroidWelcomeMessages,
   useTranslate,
 } from '../../i18n/index.js'
-import { useSettings } from '../../services/settings.js'
 import { DesktopModelTrigger } from '../../elsewhere/models/HeaderModelTrigger.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
 import { MobileHeader } from './MobileHeader.js'
@@ -19,7 +18,6 @@ let coldStartGreetingPending = true
 export const Welcome = () => {
   const t = useTranslate()
   const isMobile = useIsMobile()
-  const siderCollapsed = useSettings((state) => state.siderCollapsed)
   const coldStartGreeting = useAndroidColdStartGreeting()
   const androidMessages = useAndroidWelcomeMessages()
   const [coldStart] = useState(coldStartGreetingPending)
@@ -43,7 +41,9 @@ export const Welcome = () => {
         <MobileHeader />
       ) : (
         <div className={styles.desktopHeader}>
-          <DesktopModelTrigger className={siderCollapsed ? styles.withCollapsedSider : undefined} />
+          <span aria-hidden="true" />
+          <DesktopModelTrigger />
+          <span className={styles.desktopHeaderSpacer} aria-hidden="true" />
         </div>
       )}
       <div className={styles.welcome} data-side-shift={android ? 'center' : undefined}>

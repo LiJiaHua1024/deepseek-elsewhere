@@ -6,6 +6,7 @@ import {
   useAndroidBackInterception,
 } from '../../app/useAndroidBackInterception.js'
 import { useTranslate, type LinkedMessage, type TranslationKey } from '../../i18n/index.js'
+import { CHAT_API_FORMATS, type ChatApiFormat } from '../../services/api/chatConfig.js'
 import type { TtsVoice } from '../../services/api/speech.js'
 import {
   BackupError,
@@ -36,6 +37,7 @@ import {
   IconGlobeLanguageOutline14,
   IconLightOutline16,
   IconLinkOutline16,
+  IconPlayMediaOutline16,
   IconRefreshOutline16,
 } from '../base/icons.js'
 import { showToast } from '../base/toastState.js'
@@ -116,6 +118,7 @@ type Page =
   | 'export'
   | 'font'
   | 'personalization'
+  | 'background'
   | 'tools'
   | 'mcpList'
   | 'mcpAdd'
@@ -136,6 +139,7 @@ const parentPage: Record<Page, Page | null> = {
   export: 'data',
   font: 'root',
   personalization: 'root',
+  background: 'root',
   tools: 'root',
   mcpList: 'tools',
   mcpAdd: 'mcpList',
@@ -150,14 +154,14 @@ const ModelsIcon = () => (
     viewBox="0 0 18 18"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.45"
+    strokeWidth="1.5"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="2.5" y="3" width="13" height="5" rx="1.6" />
-    <rect x="2.5" y="10" width="13" height="5" rx="1.6" />
-    <circle cx="5.2" cy="5.5" r="0.8" fill="currentColor" stroke="none" />
-    <circle cx="5.2" cy="12.5" r="0.8" fill="currentColor" stroke="none" />
+    <rect x="1.75" y="2.25" width="14.5" height="5.5" rx="1.8" />
+    <rect x="1.75" y="10.25" width="14.5" height="5.5" rx="1.8" />
+    <circle cx="4.75" cy="5" r="0.85" fill="currentColor" stroke="none" />
+    <circle cx="4.75" cy="13" r="0.85" fill="currentColor" stroke="none" />
   </svg>
 )
 
@@ -168,12 +172,12 @@ const PromptsIcon = () => (
     viewBox="0 0 18 18"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.45"
+    strokeWidth="1.5"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="3" y="2.6" width="12" height="12.8" rx="1.6" />
-    <path d="M5.6 6.2h6.8M5.6 9h6.8M5.6 11.8h4.2" />
+    <rect x="2.25" y="1.75" width="13.5" height="14.5" rx="2.2" />
+    <path d="M5.25 6h7.5M5.25 9h7.5M5.25 12h4.75" />
   </svg>
 )
 
@@ -221,7 +225,8 @@ const LogoutIcon = () => (
   </svg>
 )
 
-const VoiceIcon = () => (
+
+const ToolsIcon = () => (
   <svg
     width="18"
     height="18"
@@ -232,13 +237,14 @@ const VoiceIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M3.2 7.2h2.1l3.1-2.5v8.6L5.3 10.8H3.2V7.2Z" />
-    <path d="M11 6.1c1.55 1.6 1.55 4.2 0 5.8" />
-    <path d="M12.6 4.5c2 2.5 2 6.5 0 9" />
+    <path d="M1.75 5.5h3.25M9.5 5.5h6.75" />
+    <circle cx="7.25" cy="5.5" r="2.25" />
+    <path d="M1.75 12.5h6.75M13 12.5h3.25" />
+    <circle cx="10.75" cy="12.5" r="2.25" />
   </svg>
 )
 
-const BackgroundKeepAliveIcon = () => (
+const BackgroundIcon = () => (
   <svg
     width="18"
     height="18"
@@ -249,39 +255,8 @@ const BackgroundKeepAliveIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M9.7 2.5 4.8 9.8h4.1L8.3 15.5l4.9-7.3H9.1l.6-5.7Z" />
-  </svg>
-)
-
-const NotificationBellIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 18 18"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M13.2 12.2H4.8c.7-.9 1.1-1.9 1.1-3.3V7.5a3.1 3.1 0 1 1 6.2 0v1.4c0 1.4.4 2.4 1.1 3.3Z" />
-    <path d="M7.6 14.3a1.6 1.6 0 0 0 2.8 0" />
-  </svg>
-)
-
-const BatteryIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 18 18"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="2.6" y="5" width="11.2" height="8" rx="1.6" />
-    <path d="M15.4 7.4v3.2" />
+    <path d="M15 12.75H3c1.05-1.15 1.5-2.55 1.5-4.6V7a4.5 4.5 0 0 1 9 0v1.15c0 2.05.45 3.45 1.5 4.6Z" />
+    <path d="M7.15 15.1a2 2 0 0 0 3.7 0" />
   </svg>
 )
 
@@ -517,6 +492,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const providers = useModelProviders((state) => state.providers)
   const activeModel = useModelProviders((state) => state.activeModel)
   const [selectedProviderId, setSelectedProviderId] = useState<string>('deepseek')
+  const [formatPicker, setFormatPicker] = useState<{
+    value: ChatApiFormat
+    onConfirm: (value: ChatApiFormat) => void
+  } | null>(null)
   const selectedProvider = providers.find((item) => item.id === selectedProviderId)
   const activeProvider = providers.find((item) => item.id === activeModel.providerId)
   const activeModelItem = activeProvider?.models.find((item) => item.id === activeModel.modelId)
@@ -586,6 +565,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     export: t('exportAllLabel'),
     font: tr('字体大小', 'Text size'),
     personalization: tr('个性化', 'Personalization'),
+    background: tr('后台与通知', 'Background & notifications'),
     tools: tr('联网搜索与工具', 'Web Search & Tools'),
     mcpList: tr('MCP 服务', 'MCP servers'),
     mcpAdd: tr('添加 MCP 服务', 'Add MCP server'),
@@ -642,6 +622,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
 
   const back = () => {
     if (busy || exiting.current) {
+      return
+    }
+    if (formatPicker) {
+      setFormatPicker(null)
       return
     }
     if (popup) {
@@ -708,7 +692,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     }
   }, [chatFrame, page])
 
-  const canPreview = page !== 'font' && popup === null && !busy
+  const canPreview = page !== 'font' && popup === null && formatPicker === null && !busy
   useLayoutEffect(() => {
     const motion = motionRef.current
     if (!canPreview || !motion) {
@@ -917,66 +901,22 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
               />
               <Row
                 label={labels.tools}
-                icon={<IconGlobeLanguageOutline14 />}
+                icon={<ToolsIcon />}
                 onClick={() => openPage('tools')}
               />
               {android ? (
-                <>
-                  <Row
-                    label={tr('后台持续生成', 'Background generation')}
-                    icon={<BackgroundKeepAliveIcon />}
-                    control={
-                      <Switch
-                        label={tr('后台持续生成', 'Background generation')}
-                        checked={backgroundKeepAlive}
-                        toggle={() => setBackgroundKeepAlive(!backgroundKeepAlive)}
-                      />
-                    }
-                  />
-                  <Row
-                    label={tr('后台完成时通知', 'Notify when finished in background')}
-                    subtitle={tr('含等待工具确认提醒', 'Includes tool confirmation alerts')}
-                    icon={<NotificationBellIcon />}
-                    control={
-                      <Switch
-                        label={tr('后台完成时通知', 'Notify when finished in background')}
-                        checked={backgroundNotify}
-                        toggle={() => {
-                          const next = !backgroundNotify
-                          setBackgroundNotify(next)
-                          if (!next || android?.areNotificationsEnabled?.() !== false) {
-                            return
-                          }
-                          if (!notificationPermissionAsked) {
-                            setNotificationPermissionAsked(true)
-                            android?.requestNotificationPermission?.()
-                          } else {
-                            showToast(
-                              tr(
-                                '请在系统设置中开启通知权限',
-                                'Enable notifications in system settings'
-                              )
-                            )
-                          }
-                        }}
-                      />
-                    }
-                  />
-                  <Row
-                    label={tr('电池优化', 'Battery optimization')}
-                    value={
-                      ignoringBattery ? tr('未限制', 'Unrestricted') : tr('系统默认', 'System default')
-                    }
-                    icon={<BatteryIcon />}
-                    onClick={() => android?.openBatteryOptimizationSettings?.()}
-                  />
-                </>
+                <Row
+                  label={labels.background}
+                  value={backgroundKeepAlive ? tr('已开启', 'On') : tr('已关闭', 'Off')}
+                  icon={<BackgroundIcon />}
+                  onClick={() => openPage('background')}
+                />
               ) : null}
             </Group>
             <Group label={tr('语音', 'Voice')}>
               <Row
                 label={voice}
-                icon={<VoiceIcon />}
+                icon={<IconPlayMediaOutline16 />}
                 arrow={false}
                 onClick={() => {
                   setTone(ttsVoice)
@@ -1101,6 +1041,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           <ModelProviderAddView
             variant="android"
             formId="android-model-provider-add-form"
+            onPickFormat={(value, onConfirm) => setFormatPicker({ value, onConfirm })}
             onSaved={(id) => {
               setSelectedProviderId(id)
               openPage('modelProviderDetail')
@@ -1111,6 +1052,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           <ModelProviderDetailView
             variant="android"
             providerId={selectedProviderId}
+            onPickFormat={(value, onConfirm) => setFormatPicker({ value, onConfirm })}
             onManageModels={() => openPage('modelManage')}
             onDeleted={back}
           />
@@ -1300,6 +1242,78 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             </p>
           </>
         ) : null}
+        {screen === 'background' ? (
+          <>
+            <Group>
+              <Row
+                label={tr('后台持续生成', 'Background generation')}
+                control={
+                  <Switch
+                    label={tr('后台持续生成', 'Background generation')}
+                    checked={backgroundKeepAlive}
+                    toggle={() => setBackgroundKeepAlive(!backgroundKeepAlive)}
+                  />
+                }
+              />
+            </Group>
+            <p className={styles.caption}>
+              {tr(
+                '切到后台后保持流式生成不断线，直至当前回复完成。',
+                'Keep streaming replies alive in the background until completion.'
+              )}
+            </p>
+            <Group>
+              <Row
+                label={tr('后台完成时通知', 'Notify when finished in background')}
+                control={
+                  <Switch
+                    label={tr('后台完成时通知', 'Notify when finished in background')}
+                    checked={backgroundNotify}
+                    toggle={() => {
+                      const next = !backgroundNotify
+                      setBackgroundNotify(next)
+                      if (!next || android?.areNotificationsEnabled?.() !== false) {
+                        return
+                      }
+                      if (!notificationPermissionAsked) {
+                        setNotificationPermissionAsked(true)
+                        android?.requestNotificationPermission?.()
+                      } else {
+                        showToast(
+                          tr(
+                            '请在系统设置中开启通知权限',
+                            'Enable notifications in system settings'
+                          )
+                        )
+                      }
+                    }}
+                  />
+                }
+              />
+            </Group>
+            <p className={styles.caption}>
+              {tr(
+                '回复完成或等待工具确认时发送系统通知提醒。',
+                'Notify when a reply finishes or waits for tool confirmation.'
+              )}
+            </p>
+            <Group>
+              <Row
+                label={tr('电池优化', 'Battery optimization')}
+                value={
+                  ignoringBattery ? tr('未限制', 'Unrestricted') : tr('系统默认', 'System default')
+                }
+                onClick={() => android?.openBatteryOptimizationSettings?.()}
+              />
+            </Group>
+            <p className={styles.caption}>
+              {tr(
+                '若系统频繁清理后台进程，可在此将电池策略设为不限制。',
+                'Set battery usage to Unrestricted if the system stops background generation.'
+              )}
+            </p>
+          </>
+        ) : null}
         {screen === 'tools' ? (
           <SearchToolsSettings
             variant="android"
@@ -1440,6 +1454,22 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             setPopup(null)
           }}
           dismiss={back}
+        />
+      ) : null}
+      {formatPicker ? (
+        <Choice
+          title={tr('协议格式', 'Protocol')}
+          value={formatPicker.value}
+          fields={(Object.keys(CHAT_API_FORMATS) as ChatApiFormat[]).map((id) => ({
+            id,
+            label: CHAT_API_FORMATS[id],
+          }))}
+          confirmLabel={tr('确认', 'Confirm')}
+          confirm={(value) => {
+            formatPicker.onConfirm(value)
+            setFormatPicker(null)
+          }}
+          dismiss={() => setFormatPicker(null)}
         />
       ) : null}
       {popup === 'voice' ? (

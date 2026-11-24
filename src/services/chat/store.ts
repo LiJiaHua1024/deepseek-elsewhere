@@ -54,7 +54,6 @@ import {
 import type {
   ActiveModelRef,
   ReasoningEffort,
-  SamplingParams,
 } from '../../elsewhere/models/types.js'
 import {
   buildRequestSystemPrompt,
@@ -837,14 +836,6 @@ export const updateSessionReasoningEffort = (
   persist(sessionId)
 }
 
-export const updateSessionSampling = (sessionId: string, sampling: SamplingParams) => {
-  if (get().importingHistory || deletingSessions.has(sessionId)) {
-    return
-  }
-  updateSession(sessionId, (session) => ({ ...session, sampling }))
-  persist(sessionId)
-}
-
 /**
  * 删除会话；本地原件仅在没有其他会话引用时清理。远端文件不删：导入、编辑、重新生成都会复用同一个附件，
  * 同一服务端文件可能被多个会话引用，不维护引用计数。
@@ -968,7 +959,6 @@ export const sendMessage = (targetSessionId: string | null) => {
       modelRef: useModelProviders.getState().activeModel,
       promptOverride: draftConfig.promptOverride,
       reasoningEffort: draftConfig.reasoningEffort,
-      sampling: draftConfig.sampling,
     }
     sessionId = session.id
     touchSession(session.id)
@@ -1676,7 +1666,6 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           messages,
           thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
           reasoningEffort: activeSession?.reasoningEffort ?? 'auto',
-          sampling: activeSession?.sampling,
           safety_check: SAFETY_CHECK,
           ...(useExternalTools
             ? activeClientTools.length > 0

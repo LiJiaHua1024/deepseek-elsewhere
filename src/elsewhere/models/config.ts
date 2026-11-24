@@ -188,8 +188,37 @@ const ensureBuiltinProvider = (providers: ModelProviderConfig[]): ModelProviderC
     return [deepseekDefault, ...providers]
   }
   const others = providers.filter((item) => item.id !== BUILTIN_DEEPSEEK_ID)
-  const mergedModels =
-    existingDeepSeek.models.length > 0 ? existingDeepSeek.models : deepseekDefault.models
+  // 旧版本把已退役的 deepseek-pro 预置为 Pro；升级到 V4 后迁移到 deepseek-v4-pro。
+  const legacyProAlias = 'deepseek-pro'
+  const v4Pro = deepseekDefault.models.find((item) => item.id === 'deepseek-v4-pro')
+  const rawModels =
+    existingDeepSeek.models.length > 0
+      ? existingDeepSeek.models.some((item) => item.id === legacyProAlias)
+        ? existingDeepSeek.models.map((item) =>
+            item.id === legacyProAlias
+              ? {
+                  ...item,
+                  id: v4Pro?.id ?? 'deepseek-v4-pro',
+                  label: v4Pro?.label ?? item.label,
+                }
+              : item
+          )
+        : existingDeepSeek.models
+      : deepseekDefault.models
+  // 若旧配置中同时存在 deepseek-pro 与 deepseek-v4-pro，迁移后按 id 去重并保留启用态。
+  const mergedModels: ProviderModelItem[] = []
+  const seenIds = new Set<string>()
+  for (const item of rawModels) {
+    if (seenIds.has(item.id)) {
+      const existing = mergedModels.find((entry) => entry.id === item.id)
+      if (existing && item.enabled) {
+        existing.enabled = true
+      }
+      continue
+    }
+    seenIds.add(item.id)
+    mergedModels.push({ ...item })
+  }
   return [
     {
       ...existingDeepSeek,
@@ -260,7 +289,8 @@ export const migrateLegacyChatConfig = (
     }))
   )
 
-  const legacyModel = legacy.model.trim()
+  // 旧版默认的 deepseek-pro 已退役，迁移到当前 V4 Pro。
+  const legacyModel = legacy.model.trim().replace(/^deepseek-pro$/i, 'deepseek-v4-pro')
   if (!legacy.endpoint.trim()) {
     const modelId = legacyModel || DEFAULT_CHAT_MODEL
     const updated = providers.map((provider) =>
@@ -441,6 +471,14 @@ const loadInitialState = (): {
           }
         } catch {
           storedActive = null
+        }
+        // 旧版本激活的是已退役的 deepseek-pro，升级到 V4 后落到 deepseek-v4-pro。
+        if (
+          storedActive &&
+          storedActive.providerId === BUILTIN_DEEPSEEK_ID &&
+          storedActive.modelId === 'deepseek-pro'
+        ) {
+          storedActive = { providerId: BUILTIN_DEEPSEEK_ID, modelId: 'deepseek-v4-pro' }
         }
         const activeModel = resolveActiveRef(loaded, storedActive)
         return { providers: loaded, activeModel }

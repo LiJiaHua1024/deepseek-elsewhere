@@ -2,7 +2,6 @@ import type { TranslationMessage } from '../../i18n/index.js'
 import type {
   ActiveModelRef,
   ReasoningEffort,
-  SamplingParams,
 } from '../../elsewhere/models/types.js'
 import type { SessionPromptOverride } from '../../elsewhere/prompts/types.js'
 import type { ClientToolCallBlock } from '../../elsewhere/tools/types.js'
@@ -135,7 +134,6 @@ export type Session = {
   modelRef?: ActiveModelRef
   promptOverride?: SessionPromptOverride
   reasoningEffort?: ReasoningEffort
-  sampling?: SamplingParams
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

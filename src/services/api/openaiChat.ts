@@ -182,13 +182,6 @@ export const openAIRequest = (
         ? { tools: serializedClientTools }
         : {}),
   }
-  const omitSampling = deepSeek && body.thinking.type === 'enabled'
-  const samplingFields = {
-    ...(!omitSampling && body.sampling?.temperature != null
-      ? { temperature: body.sampling.temperature }
-      : {}),
-    ...(!omitSampling && body.sampling?.topP != null ? { top_p: body.sampling.topP } : {}),
-  }
   const thinkingEnabled = body.thinking.type === 'enabled'
   const customEffort =
     body.reasoningEffort && body.reasoningEffort !== 'auto' ? body.reasoningEffort : 'medium'
@@ -205,7 +198,6 @@ export const openAIRequest = (
             max_completion_tokens: body.max_tokens,
             ...(thinkingEnabled ? { reasoning_effort: customEffort } : {}),
           }),
-      ...samplingFields,
     }
   }
   return {
@@ -227,7 +219,6 @@ export const openAIRequest = (
             },
           }
         : {}),
-    ...samplingFields,
     store: false,
   }
 }

@@ -1,10 +1,11 @@
 .centerSlot {
-  flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
+  padding: 0 4px;
 }
 
 .pillButton {
@@ -126,6 +127,11 @@
   &:hover {
     background: var(--dsw-alias-interactive-bg-hover);
   }
+}
+
+[data-android] .pillButton {
+  height: 32px;
+  font-size: 13.5px;
 }
 
 [data-android] .sessionTitle {

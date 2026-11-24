@@ -7,7 +7,6 @@ import {
   IconDataOutline16,
   IconDownloadOutline16,
   IconFollowsystemOutline16,
-  IconGlobeLanguageOutline14,
   IconLightOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
@@ -51,22 +50,57 @@ import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
 import styles from './Settings.module.css'
 
 const ModelsIcon16 = () => (
-  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <rect x="2" y="2.5" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
-    <rect x="2" y="9" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
-    <circle cx="4.5" cy="4.75" r="0.75" fill="currentColor" />
-    <circle cx="4.5" cy="11.25" r="0.75" fill="currentColor" />
+  <svg
+    width={16}
+    height={16}
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="1.5" y="2" width="13" height="4.9" rx="1.6" />
+    <rect x="1.5" y="9.1" width="13" height="4.9" rx="1.6" />
+    <circle cx="4.2" cy="4.45" r="0.75" fill="currentColor" stroke="none" />
+    <circle cx="4.2" cy="11.55" r="0.75" fill="currentColor" stroke="none" />
   </svg>
 )
 
 const PromptsIcon16 = () => (
-  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path
-      d="M3.2 2.5h9.6c.7 0 1.2.5 1.2 1.2v8.6c0 .7-.5 1.2-1.2 1.2H3.2c-.7 0-1.2-.5-1.2-1.2V3.7c0-.7.5-1.2 1.2-1.2Z"
-      stroke="currentColor"
-      strokeWidth="1.35"
-    />
-    <path d="M5 5.8h6M5 8.2h6M5 10.6h3.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  <svg
+    width={16}
+    height={16}
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="2" y="1.5" width="12" height="13" rx="2" />
+    <path d="M4.6 5.3h6.8M4.6 8h6.8M4.6 10.7h4.2" />
+  </svg>
+)
+
+const ToolsIcon16 = () => (
+  <svg
+    width={16}
+    height={16}
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M1.75 4.8h2.65M8.4 4.8h5.85" />
+    <circle cx="6.4" cy="4.8" r="2" />
+    <path d="M1.75 11.2h5.85M11.6 11.2h2.65" />
+    <circle cx="9.6" cy="11.2" r="2" />
   </svg>
 )
 
@@ -93,7 +127,7 @@ const sections: {
   },
   { value: 'models', zh: '模型服务', en: 'Model services', icon: <ModelsIcon16 /> },
   { value: 'prompts', zh: '系统指令', en: 'Instructions', icon: <PromptsIcon16 /> },
-  { value: 'tools', zh: '联网搜索与工具', en: 'Web Search & Tools', icon: <IconGlobeLanguageOutline14 /> },
+  { value: 'tools', zh: '联网搜索与工具', en: 'Web Search & Tools', icon: <ToolsIcon16 /> },
   { value: 'account', label: 'accountManagement', icon: <ProfileIcon /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]

@@ -35,64 +35,72 @@ export const SystemPromptListView = ({
         </div>
       ) : null}
 
-      <div className={styles.card}>
-        <div className={styles.cardTitle}>
-          {zh ? '全局默认指令' : 'Global default instruction'}
-        </div>
-        <div className={styles.chips} role="radiogroup" aria-label={zh ? '全局默认指令' : 'Global default instruction'}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={defaultPresetId === null}
-            className={clsx(styles.chip, defaultPresetId === null && styles.chipSelected)}
-            onClick={() => setDefaultPromptPreset(null)}
-          >
-            {zh ? '无' : 'None'}
-          </button>
-          {presets.map((preset) => (
+      <section className={styles.group}>
+        {variant === 'android' ? (
+          <div className={styles.sectionLabel}>{zh ? '全局默认指令' : 'Global default instruction'}</div>
+        ) : null}
+        <div className={styles.card}>
+          {variant === 'web' ? (
+            <div className={styles.cardTitle}>
+              {zh ? '全局默认指令' : 'Global default instruction'}
+            </div>
+          ) : null}
+          <div className={styles.chips} role="radiogroup" aria-label={zh ? '全局默认指令' : 'Global default instruction'}>
             <button
-              key={preset.id}
               type="button"
               role="radio"
-              aria-checked={defaultPresetId === preset.id}
-              className={clsx(styles.chip, defaultPresetId === preset.id && styles.chipSelected)}
-              onClick={() => setDefaultPromptPreset(preset.id)}
+              aria-checked={defaultPresetId === null}
+              className={clsx(styles.chip, defaultPresetId === null && styles.chipSelected)}
+              onClick={() => setDefaultPromptPreset(null)}
             >
-              {preset.name}
+              {zh ? '无' : 'None'}
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.sectionLabel}>{zh ? '指令预设' : 'Presets'}</div>
-
-      {presets.length === 0 ? (
-        <div className={styles.card}>
-          <div className={styles.emptyNotice}>
-            {zh ? '暂无预设，点击右上「+ 新建」创建' : 'No presets yet'}
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                role="radio"
+                aria-checked={defaultPresetId === preset.id}
+                className={clsx(styles.chip, defaultPresetId === preset.id && styles.chipSelected)}
+                onClick={() => setDefaultPromptPreset(preset.id)}
+              >
+                {preset.name}
+              </button>
+            ))}
           </div>
         </div>
-      ) : (
-        <div className={styles.presetList}>
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={styles.presetCard}
-              onClick={() => onEdit(preset.id)}
-            >
-              <div className={styles.presetHeader}>
-                <span className={styles.presetName}>{preset.name}</span>
-                <span className={styles.presetEditHint}>
-                  {zh ? '编辑' : 'Edit'}
+      </section>
+
+      <section className={styles.group}>
+        <div className={styles.sectionLabel}>{zh ? '指令预设' : 'Presets'}</div>
+
+        {presets.length === 0 ? (
+          <div className={styles.card}>
+            <div className={styles.emptyNotice}>
+              {zh ? '暂无预设，点击右上「+ 新建」创建' : 'No presets yet'}
+            </div>
+          </div>
+        ) : (
+          <div className={styles.listCard}>
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={styles.presetRow}
+                onClick={() => onEdit(preset.id)}
+              >
+                <span className={styles.presetText}>
+                  <span className={styles.presetName}>{preset.name}</span>
+                  <span className={styles.presetPreview}>{preset.content}</span>
+                </span>
+                <span className={styles.rowChevron} aria-hidden="true">
                   <IconChevronRightOutline14 />
                 </span>
-              </div>
-              <div className={styles.presetPreview}>{preset.content}</div>
-            </button>
-          ))}
-        </div>
-      )}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

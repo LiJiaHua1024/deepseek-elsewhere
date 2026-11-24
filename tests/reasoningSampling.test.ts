@@ -17,11 +17,10 @@ const baseBody: CreateMessageRequest = {
   messages: [{ role: 'user', content: 'Hello' }],
   thinking: { type: 'enabled' },
   reasoningEffort: 'auto',
-  sampling: { temperature: 0.7, topP: 0.9 },
 }
 
-describe('Three-protocol reasoning effort and sampling serialization', () => {
-  it('serializes Anthropic Messages with budget_tokens, raised max_tokens, and omitted sampling when thinking enabled', () => {
+describe('Three-protocol reasoning effort serialization', () => {
+  it('serializes Anthropic Messages with budget_tokens and omits temperature/top_p', () => {
     assert.equal(resolveAnthropicThinkingBudget('low'), 2048)
     assert.equal(resolveAnthropicThinkingBudget('medium'), 8192)
     assert.equal(resolveAnthropicThinkingBudget('auto'), 8192)
@@ -43,23 +42,23 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
     assert.deepEqual(highReq.thinking, { type: 'enabled', budget_tokens: 16384 })
     assert.equal(highReq.max_tokens, 20480)
     assert.equal('temperature' in highReq, false)
+    assert.equal('top_p' in highReq, false)
 
     const disabledReq = customMessagesRequest({
       ...baseBody,
       thinking: { type: 'disabled' },
-      sampling: { temperature: 0.5, topP: null },
     }) as Record<string, unknown>
     assert.equal('thinking' in disabledReq, false)
     assert.equal(disabledReq.max_tokens, 4096)
-    assert.equal(disabledReq.temperature, 0.5)
+    assert.equal('temperature' in disabledReq, false)
     assert.equal('top_p' in disabledReq, false)
   })
 
-  it('serializes OpenAI Chat Completions reasoning_effort and optional sampling for custom endpoints', () => {
+  it('serializes OpenAI Chat Completions reasoning_effort and omits temperature/top_p', () => {
     const enabledAuto = openAIRequest('chat', baseBody, false) as Record<string, unknown>
     assert.equal(enabledAuto.reasoning_effort, 'medium')
-    assert.equal(enabledAuto.temperature, 0.7)
-    assert.equal(enabledAuto.top_p, 0.9)
+    assert.equal('temperature' in enabledAuto, false)
+    assert.equal('top_p' in enabledAuto, false)
 
     const enabledHigh = openAIRequest(
       'chat',
@@ -70,19 +69,19 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
 
     const disabled = openAIRequest(
       'chat',
-      { ...baseBody, thinking: { type: 'disabled' }, sampling: { temperature: null, topP: 0.85 } },
+      { ...baseBody, thinking: { type: 'disabled' } },
       false
     ) as Record<string, unknown>
     assert.equal('reasoning_effort' in disabled, false)
     assert.equal('temperature' in disabled, false)
-    assert.equal(disabled.top_p, 0.85)
+    assert.equal('top_p' in disabled, false)
   })
 
-  it('serializes OpenAI Responses reasoning object and optional sampling for custom endpoints', () => {
+  it('serializes OpenAI Responses reasoning object and omits temperature/top_p', () => {
     const enabledAuto = openAIRequest('responses', baseBody, false) as Record<string, unknown>
     assert.deepEqual(enabledAuto.reasoning, { effort: 'medium', summary: 'auto' })
-    assert.equal(enabledAuto.temperature, 0.7)
-    assert.equal(enabledAuto.top_p, 0.9)
+    assert.equal('temperature' in enabledAuto, false)
+    assert.equal('top_p' in enabledAuto, false)
 
     const enabledLow = openAIRequest(
       'responses',
@@ -93,7 +92,7 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
 
     const disabled = openAIRequest(
       'responses',
-      { ...baseBody, thinking: { type: 'disabled' }, sampling: {} },
+      { ...baseBody, thinking: { type: 'disabled' } },
       false
     ) as Record<string, unknown>
     assert.equal('reasoning' in disabled, false)
@@ -101,7 +100,7 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
     assert.equal('top_p' in disabled, false)
   })
 
-  it('preserves official DeepSeek protocol behavior and omits sampling when thinking enabled', () => {
+  it('preserves official DeepSeek protocol behavior without emitting temperature/top_p', () => {
     const officialMsgEnabled = JSON.parse(serializeOfficialAnthropicBody(baseBody)) as Record<
       string,
       unknown
@@ -109,16 +108,18 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
     assert.deepEqual(officialMsgEnabled.thinking, { type: 'enabled' })
     assert.equal('reasoningEffort' in officialMsgEnabled, false)
     assert.equal('temperature' in officialMsgEnabled, false)
+    assert.equal('top_p' in officialMsgEnabled, false)
 
     const officialMsgDisabled = JSON.parse(
       serializeOfficialAnthropicBody({ ...baseBody, thinking: { type: 'disabled' } })
     ) as Record<string, unknown>
-    assert.equal(officialMsgDisabled.temperature, 0.7)
-    assert.equal(officialMsgDisabled.top_p, 0.9)
+    assert.equal('temperature' in officialMsgDisabled, false)
+    assert.equal('top_p' in officialMsgDisabled, false)
 
     const officialRespAuto = openAIRequest('responses', baseBody, true) as Record<string, unknown>
     assert.deepEqual(officialRespAuto.reasoning, { effort: 'high' })
     assert.equal('temperature' in officialRespAuto, false)
+    assert.equal('top_p' in officialRespAuto, false)
 
     const officialRespDisabled = openAIRequest(
       'responses',
@@ -126,7 +127,8 @@ describe('Three-protocol reasoning effort and sampling serialization', () => {
       true
     ) as Record<string, unknown>
     assert.deepEqual(officialRespDisabled.reasoning, { effort: 'none' })
-    assert.equal(officialRespDisabled.temperature, 0.7)
+    assert.equal('temperature' in officialRespDisabled, false)
+    assert.equal('top_p' in officialRespDisabled, false)
   })
 
   it('detects 400 errors pointing to unsupported thinking/reasoning parameters only', () => {

@@ -33,6 +33,7 @@ export const SessionView = memo(function SessionView({
             {title}
           </div>
           <DesktopModelTrigger />
+          <span className={styles.headerSpacer} aria-hidden="true" />
         </div>
       )}
       <MessageList

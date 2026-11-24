@@ -44,7 +44,47 @@
   max-height: 82vh;
   padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
   border-radius: 24px 24px 0 0;
+  background-color: var(--settings-card, var(--dsw-alias-bg-layer-2));
   animation: sheet-enter 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-ds-dark-theme] .sheet {
+  background-color: #242424;
+}
+
+.sheet .segmentBtn {
+  height: 36px;
+  font-size: 14px;
+}
+
+.sheet .searchInput {
+  height: 40px;
+  font-size: 14.5px;
+}
+
+.sheet .modelRow {
+  min-height: 54px;
+  padding: 10px 14px;
+}
+
+.sheet .modelLabel {
+  font-size: 15.5px;
+  line-height: 21px;
+}
+
+.sheet .manageButton {
+  min-height: 50px;
+  font-size: 15px;
+}
+
+.sheet .chip {
+  height: 36px;
+  font-size: 13.5px;
+}
+
+.sheet .effortBtn {
+  height: 40px;
+  font-size: 14px;
 }
 
 @keyframes sheet-enter {
@@ -372,88 +412,4 @@
   border-color: var(--dsw-alias-brand-primary);
   background: var(--dsw-alias-button-ghost-active-fill);
   color: var(--dsw-alias-brand-text);
-}
-
-.collapseHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 12px 14px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.collapseTitle {
-  font-size: 13.5px;
-  font-weight: 500;
-}
-
-.collapseRight {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.collapseArrow {
-  display: inline-flex;
-  transition: transform 160ms;
-}
-
-.collapseArrowOpen {
-  transform: rotate(180deg);
-}
-
-.samplingBody {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 14px 14px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
-}
-
-.sliderRow {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 10px;
-}
-
-.sliderTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.sliderValue {
-  font-family: var(--ds-font-family-code);
-  color: var(--dsw-alias-label-primary);
-}
-
-.slider {
-  width: 100%;
-  accent-color: var(--dsw-alias-brand-primary);
-}
-
-.resetButton {
-  align-self: flex-start;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  padding: 5px 10px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-  }
 }

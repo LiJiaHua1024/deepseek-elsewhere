@@ -6,6 +6,7 @@ import {
   IconSearchOutline16,
 } from '../../components/base/icons.js'
 import { Modal } from '../../components/base/Modal.js'
+import { Select } from '../../components/base/Select.js'
 import { CHAT_API_FORMATS, type ChatApiFormat } from '../../services/api/chatConfig.js'
 import { useSettings } from '../../services/settings.js'
 import { setTitleModel, useElsewherePrefs } from '../preferences.js'
@@ -62,82 +63,95 @@ export const ModelProviderListView = ({
         </div>
       ) : null}
 
-      {providers.map((provider) => {
-        const hasKey = provider.builtin
-          ? Boolean(officialApiKey?.trim())
-          : Boolean(provider.apiKey.trim())
-        const enabledModels = provider.models.filter((item) => item.enabled)
-        const modelSummary =
-          enabledModels.length > 0
-            ? enabledModels.map((item) => item.label || item.id).join(' · ')
-            : zh
-              ? '暂未启用模型'
-              : 'No enabled models'
-        const secondaryText = provider.builtin
-          ? zh
-            ? '使用当前 DeepSeek API Key'
-            : 'Uses current DeepSeek API Key'
-          : provider.baseUrl || (zh ? '未配置接口地址' : 'No base URL')
+      <section className={styles.group}>
+        {variant === 'android' ? (
+          <div className={styles.sectionLabel}>{zh ? '服务商' : 'Providers'}</div>
+        ) : null}
+        <div className={styles.listCard}>
+          {providers.map((provider) => {
+            const hasKey = provider.builtin
+              ? Boolean(officialApiKey?.trim())
+              : Boolean(provider.apiKey.trim())
+            const enabledCount = provider.models.filter((item) => item.enabled).length
+            const secondaryText = provider.builtin
+              ? zh
+                ? '使用当前 DeepSeek API Key'
+                : 'Uses current DeepSeek API Key'
+              : provider.baseUrl || (zh ? '未配置接口地址' : 'No base URL')
+            const statusText = !provider.enabled
+              ? zh
+                ? '已停用'
+                : 'Disabled'
+              : enabledCount > 0
+                ? zh
+                  ? `已启用 · ${enabledCount}`
+                  : `${enabledCount} active`
+                : zh
+                  ? '已启用'
+                  : 'Enabled'
 
-        return (
-          <div key={provider.id} className={styles.providerCard}>
-            <div className={styles.providerTop}>
+            return (
               <button
+                key={provider.id}
                 type="button"
-                className={styles.providerInfoBtn}
+                className={styles.providerRowBtn}
                 onClick={() => onSelectProvider(provider.id)}
               >
                 <span
                   className={clsx(styles.statusDot, hasKey && styles.statusDotReady)}
                   aria-hidden="true"
                 />
-                <div className={styles.providerMeta}>
+                <span className={styles.providerMeta}>
                   <span className={styles.providerName}>{provider.name}</span>
                   <span className={styles.providerSub}>{secondaryText}</span>
-                </div>
+                </span>
+                <span className={styles.rowValueGroup}>
+                  <span className={styles.rowValue}>{statusText}</span>
+                  <span className={styles.rowChevron} aria-hidden="true">
+                    <IconChevronRightOutline14 />
+                  </span>
+                </span>
               </button>
-              <button
-                type="button"
-                className={styles.switch}
-                role="switch"
-                aria-label={provider.name}
-                aria-checked={provider.enabled}
-                onClick={() => setProviderEnabled(provider.id, !provider.enabled)}
-              >
-                <span />
-              </button>
-            </div>
-            <button
-              type="button"
-              className={styles.providerFooter}
-              onClick={() => onSelectProvider(provider.id)}
-            >
-              <span className={styles.providerFooterText}>{modelSummary}</span>
-              <IconChevronRightOutline14 />
-            </button>
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+      </section>
 
-      <div className={styles.card}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>
-            {zh ? '标题生成模型（可选）' : 'Title generation model (optional)'}
-          </span>
-          <input
-            className={styles.input}
-            value={titleDraft}
-            placeholder={zh ? '留空默认跟随当前对话模型' : 'Follow current chat model if blank'}
-            autoCapitalize="off"
-            spellCheck={false}
-            onChange={(event) => {
-              const value = event.target.value
-              setTitleDraft(value)
-              setTitleModel(value)
-            }}
-          />
-        </label>
-      </div>
+      <section className={styles.group}>
+        {variant === 'android' ? (
+          <div className={styles.sectionLabel}>{zh ? '辅助设置' : 'Preferences'}</div>
+        ) : null}
+        <div className={styles.card}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              {zh ? '标题生成模型（可选）' : 'Title generation model (optional)'}
+            </span>
+            <input
+              className={styles.input}
+              value={titleDraft}
+              placeholder={
+                zh
+                  ? variant === 'android'
+                    ? '输入模型 ID，如 deepseek-flash'
+                    : '留空默认跟随当前对话模型'
+                  : 'Follow current chat model if blank'
+              }
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={(event) => {
+                const value = event.target.value
+                setTitleDraft(value)
+                setTitleModel(value)
+              }}
+            />
+          </label>
+        </div>
+        <p className={styles.caption}>
+          {zh
+            ? '留空时默认使用当前对话模型自动生成会话标题。'
+            : 'Leaves blank to follow the active chat model when generating titles.'}
+        </p>
+      </section>
     </div>
   )
 }
@@ -145,11 +159,13 @@ export const ModelProviderListView = ({
 export const ModelProviderAddView = ({
   variant,
   formId = 'model-provider-add-form',
+  onPickFormat,
   onBack,
   onSaved,
 }: {
   variant: 'web' | 'android'
   formId?: string
+  onPickFormat?: (current: ChatApiFormat, onConfirm: (next: ChatApiFormat) => void) => void
   onBack?: () => void
   onSaved: (createdProviderId: string) => void
 }) => {
@@ -210,23 +226,21 @@ export const ModelProviderAddView = ({
           />
         </label>
 
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>{zh ? '协议格式' : 'Protocol'}</span>
-          <select
-            className={styles.selectInput}
-            value={format}
-            onChange={(event) => {
-              setFormat(event.target.value as ChatApiFormat)
-              setError('')
-            }}
-          >
-            {FORMAT_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {variant !== 'android' || !onPickFormat ? (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{zh ? '协议格式' : 'Protocol'}</span>
+            <Select
+              className={styles.formatSelect}
+              ariaLabel={zh ? '协议格式' : 'Protocol'}
+              value={format}
+              options={FORMAT_OPTIONS}
+              onChange={(value) => {
+                setFormat(value)
+                setError('')
+              }}
+            />
+          </label>
+        ) : null}
 
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{zh ? '接口地址' : 'Base URL'}</span>
@@ -262,7 +276,7 @@ export const ModelProviderAddView = ({
           />
         </label>
 
-        {error ? (
+        {variant === 'web' && error ? (
           <div className={styles.feedbackError} role="alert">
             {error}
           </div>
@@ -276,6 +290,35 @@ export const ModelProviderAddView = ({
           </div>
         ) : null}
       </div>
+
+      {variant === 'android' && onPickFormat ? (
+        <div className={styles.listCard}>
+          <button
+            type="button"
+            className={styles.choiceRow}
+            onClick={() =>
+              onPickFormat(format, (value) => {
+                setFormat(value)
+                setError('')
+              })
+            }
+          >
+            <span className={styles.rowLabel}>{zh ? '协议格式' : 'Protocol'}</span>
+            <span className={styles.rowValueGroup}>
+              <span className={styles.rowValue}>{CHAT_API_FORMATS[format]}</span>
+              <span className={styles.rowChevron} aria-hidden="true">
+                <IconChevronRightOutline14 />
+              </span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      {variant === 'android' && error ? (
+        <div className={clsx(styles.feedbackError, styles.androidFeedback)} role="alert">
+          {error}
+        </div>
+      ) : null}
     </form>
   )
 }
@@ -283,12 +326,14 @@ export const ModelProviderAddView = ({
 export const ModelProviderDetailView = ({
   variant,
   providerId,
+  onPickFormat,
   onBack,
   onManageModels,
   onDeleted,
 }: {
   variant: 'web' | 'android'
   providerId: string
+  onPickFormat?: (current: ChatApiFormat, onConfirm: (next: ChatApiFormat) => void) => void
   onBack?: () => void
   onManageModels: () => void
   onDeleted: () => void
@@ -401,28 +446,63 @@ export const ModelProviderDetailView = ({
         </div>
       ) : null}
 
-      <div className={styles.card}>
-        {variant === 'android' ? (
-          <div className={styles.cardHeaderRow}>
-            <span className={styles.cardTitle}>{zh ? '启用此服务' : 'Enable provider'}</span>
+      <section className={styles.group}>
+        <div className={styles.listCard}>
+          {variant === 'android' ? (
+            <div className={styles.switchRow}>
+              <span className={styles.rowLabel}>{zh ? '启用此服务' : 'Enable provider'}</span>
+              <button
+                type="button"
+                className={styles.switch}
+                role="switch"
+                aria-label={provider.name}
+                aria-checked={provider.enabled}
+                onClick={() => setProviderEnabled(provider.id, !provider.enabled)}
+              >
+                <span />
+              </button>
+            </div>
+          ) : null}
+
+          {variant === 'android' && onPickFormat ? (
             <button
               type="button"
-              className={styles.switch}
-              role="switch"
-              aria-label={provider.name}
-              aria-checked={provider.enabled}
-              onClick={() => setProviderEnabled(provider.id, !provider.enabled)}
+              className={styles.choiceRow}
+              onClick={() =>
+                onPickFormat(provider.format, (value) =>
+                  updateProvider(provider.id, { format: value })
+                )
+              }
             >
-              <span />
-            </button>
-          </div>
-        ) : null}
-        {provider.builtin ? (
-          <>
-            <div className={styles.cardHeaderRow}>
-              <span className={styles.noteText}>
-                {zh ? '使用当前 DeepSeek API Key' : 'Uses current DeepSeek API Key'}
+              <span className={styles.rowLabel}>{zh ? '协议格式' : 'Protocol'}</span>
+              <span className={styles.rowValueGroup}>
+                <span className={styles.rowValue}>{CHAT_API_FORMATS[provider.format]}</span>
+                <span className={styles.rowChevron} aria-hidden="true">
+                  <IconChevronRightOutline14 />
+                </span>
               </span>
+            </button>
+          ) : (
+            <div className={styles.selectRow}>
+              <span className={styles.rowLabel}>{zh ? '协议格式' : 'Protocol'}</span>
+              <Select
+                className={styles.formatSelect}
+                ariaLabel={zh ? '协议格式' : 'Protocol'}
+                value={provider.format}
+                options={FORMAT_OPTIONS}
+                onChange={(value) => updateProvider(provider.id, { format: value })}
+              />
+            </div>
+          )}
+
+          {provider.builtin ? (
+            <div className={styles.builtinTestRow}>
+              <div className={styles.providerMeta}>
+                <span className={styles.rowLabel}>API Key</span>
+                <span className={styles.providerSub}>
+                  {zh ? '使用当前 DeepSeek API Key' : 'Uses current DeepSeek API Key'}
+                </span>
+              </div>
               <button
                 type="button"
                 className={styles.secondaryButton}
@@ -432,25 +512,27 @@ export const ModelProviderDetailView = ({
                 {testing ? (zh ? '检测中…' : 'Testing…') : zh ? '检测' : 'Test'}
               </button>
             </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{zh ? '协议格式' : 'Protocol'}</span>
-              <select
-                className={styles.selectInput}
-                value={provider.format}
-                onChange={(event) =>
-                  updateProvider(provider.id, { format: event.target.value as ChatApiFormat })
-                }
-              >
-                {FORMAT_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        ) : (
-          <>
+          ) : null}
+        </div>
+        {provider.builtin && testResult ? (
+          <div
+            className={clsx(
+              testResult.ok ? styles.feedbackOk : styles.feedbackError,
+              variant === 'android' && styles.androidFeedback
+            )}
+            role={testResult.ok ? 'status' : 'alert'}
+          >
+            {testResult.text}
+          </div>
+        ) : null}
+      </section>
+
+      {!provider.builtin ? (
+        <section className={styles.group}>
+          {variant === 'android' ? (
+            <div className={styles.sectionLabel}>{zh ? '连接配置' : 'Connection'}</div>
+          ) : null}
+          <div className={styles.card}>
             <div className={styles.field}>
               <span className={styles.fieldLabel}>API Key</span>
               <div className={styles.inputRow}>
@@ -511,73 +593,65 @@ export const ModelProviderDetailView = ({
               />
             </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{zh ? '协议格式' : 'Protocol'}</span>
-              <select
-                className={styles.selectInput}
-                value={provider.format}
-                onChange={(event) =>
-                  updateProvider(provider.id, { format: event.target.value as ChatApiFormat })
-                }
+            {urlError ? (
+              <div className={styles.feedbackError} role="alert">
+                {urlError}
+              </div>
+            ) : null}
+            {testResult ? (
+              <div
+                className={testResult.ok ? styles.feedbackOk : styles.feedbackError}
+                role={testResult.ok ? 'status' : 'alert'}
               >
-                {FORMAT_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-
-        {urlError ? (
-          <div className={styles.feedbackError} role="alert">
-            {urlError}
+                {testResult.text}
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        {testResult ? (
-          <div
-            className={testResult.ok ? styles.feedbackOk : styles.feedbackError}
-            role={testResult.ok ? 'status' : 'alert'}
-          >
-            {testResult.text}
-          </div>
-        ) : null}
-      </div>
+        </section>
+      ) : null}
 
-      <div className={styles.listCard}>
-        <div className={clsx(styles.cardHeaderRow, styles.modelItem)}>
-          <span className={styles.cardTitle}>
-            {zh ? `已启用模型（${enabledModels.length}）` : `Enabled models (${enabledModels.length})`}
+      <section className={styles.group}>
+        <div className={styles.sectionHeaderRow}>
+          <span className={styles.sectionLabelInline}>
+            {zh
+              ? `已启用模型（${enabledModels.length}）`
+              : `Enabled models (${enabledModels.length})`}
           </span>
           <button type="button" className={styles.linkButton} onClick={onManageModels}>
             {zh ? '+ 管理' : '+ Manage'}
           </button>
         </div>
-
-        {enabledModels.length === 0 ? (
-          <div className={styles.emptyNotice}>
-            {zh ? '尚未启用模型，点右上「+ 管理」拉取或手动添加' : 'No models enabled yet'}
-          </div>
-        ) : (
-          enabledModels.map((model) => (
-            <div key={model.id} className={styles.modelItem}>
-              <div className={styles.modelItemText}>
-                <span className={styles.modelItemName}>{model.label || model.id}</span>
-                <span className={styles.modelItemId}>{model.id}</span>
-              </div>
-              <button
-                type="button"
-                className={styles.circleBtn}
-                aria-label={zh ? `移除 ${model.id}` : `Remove ${model.id}`}
-                onClick={() => toggleProviderModel(provider.id, model.id, false)}
-              >
-                −
-              </button>
+        <div className={styles.listCard}>
+          {enabledModels.length === 0 ? (
+            <div className={styles.emptyNotice}>
+              {zh ? '尚未启用模型，点下方「管理模型」拉取或手动添加' : 'No models enabled yet'}
             </div>
-          ))
-        )}
-      </div>
+          ) : (
+            enabledModels.map((model) => (
+              <div key={model.id} className={styles.modelItem}>
+                <div className={styles.modelItemText}>
+                  <span className={styles.modelItemName}>{model.label || model.id}</span>
+                  <span className={styles.modelItemId}>{model.id}</span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.circleBtn}
+                  aria-label={zh ? `移除 ${model.id}` : `Remove ${model.id}`}
+                  onClick={() => toggleProviderModel(provider.id, model.id, false)}
+                >
+                  −
+                </button>
+              </div>
+            ))
+          )}
+          <button type="button" className={styles.navRow} onClick={onManageModels}>
+            <span className={styles.navRowLabel}>{zh ? '管理模型' : 'Manage models'}</span>
+            <span className={styles.rowChevron} aria-hidden="true">
+              <IconChevronRightOutline14 />
+            </span>
+          </button>
+        </div>
+      </section>
 
       {!provider.builtin ? (
         <button
@@ -827,7 +901,7 @@ export const ModelManageView = ({
 
       <button
         type="button"
-        className={styles.secondaryButton}
+        className={styles.manualAddBtn}
         onClick={() => {
           setManualError('')
           setManualOpen(true)
@@ -843,7 +917,10 @@ export const ModelManageView = ({
           className={styles.modalDialog}
           onClose={() => setManualOpen(false)}
         >
-          <form className={styles.container} onSubmit={handleManualSubmit}>
+          <form
+            className={clsx(styles.container, variant === 'android' && styles.modalAndroid)}
+            onSubmit={handleManualSubmit}
+          >
             <label className={styles.field}>
               <span className={styles.fieldLabel}>{zh ? '模型 ID' : 'Model ID'}</span>
               <input

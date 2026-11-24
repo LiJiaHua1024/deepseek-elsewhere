@@ -6,7 +6,8 @@
 }
 
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
@@ -17,7 +18,9 @@
 }
 
 .title {
-  max-width: 480px;
+  justify-self: start;
+  min-width: 0;
+  max-width: min(480px, 100%);
   padding: 8px 12px;
   overflow: hidden;
   white-space: nowrap;
@@ -28,6 +31,10 @@
 
 .withCollapsedSider {
   margin-left: 113px;
+}
+
+.headerSpacer {
+  justify-self: end;
 }
 
 .inputContainer {

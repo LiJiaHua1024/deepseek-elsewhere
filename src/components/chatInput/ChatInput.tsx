@@ -59,14 +59,21 @@ import toolsEntryStyles from '../../elsewhere/tools/ToolsEntry.module.css'
 import styles from './ChatInput.module.css'
 
 const DesktopToolsIcon16 = () => (
-  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path
-      d="M9.9 2.4a3.4 3.4 0 0 0-3.2 4.55L2.45 11.2a1.25 1.25 0 0 0 1.77 1.77l4.25-4.25a3.4 3.4 0 0 0 4.55-3.2 3.3 3.3 0 0 0-.32-1.42l-1.92 1.92-1.4-1.4 1.92-1.92A3.3 3.3 0 0 0 9.9 2.4Z"
-      stroke="currentColor"
-      strokeWidth="1.35"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+  <svg
+    width={16}
+    height={16}
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M1.75 4.8h2.65M8.4 4.8h5.85" />
+    <circle cx="6.4" cy="4.8" r="2" />
+    <path d="M1.75 11.2h5.85M11.6 11.2h2.65" />
+    <circle cx="9.6" cy="11.2" r="2" />
   </svg>
 )
 

@@ -100,7 +100,6 @@ describe('Custom system instructions and priority rules', () => {
       modelRef: { providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
       promptOverride: { mode: 'preset', presetId: 'builtin-direct' },
       reasoningEffort: 'high',
-      sampling: { temperature: 0.3, topP: 0.9 },
       messages: [
         { id: 'm1', role: 'user', content: 'Hi', files: [], createdAt: now },
         {
@@ -133,6 +132,5 @@ describe('Custom system instructions and priority rules', () => {
     assert.deepEqual(merged.session.modelRef, local.modelRef)
     assert.deepEqual(merged.session.promptOverride, local.promptOverride)
     assert.equal(merged.session.reasoningEffort, 'high')
-    assert.deepEqual(merged.session.sampling, { temperature: 0.3, topP: 0.9 })
   })
 })

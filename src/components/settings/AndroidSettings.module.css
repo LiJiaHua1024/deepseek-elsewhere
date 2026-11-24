@@ -175,6 +175,14 @@ a.row:active,
   color: var(--settings-muted);
 }
 
+.value {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: end;
+}
+
 .arrow {
   display: flex;
   margin-left: -5px;

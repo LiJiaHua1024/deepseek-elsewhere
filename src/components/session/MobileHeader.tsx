@@ -41,7 +41,7 @@ export const MobileHeader = ({ title }: { title?: string }) => {
       {title === undefined && !android ? (
         <span className={styles.balanceSpacer} aria-hidden="true" />
       ) : (
-        <>
+        <div className={styles.rightActions}>
           {android ? (
             <IconButton
               size="xl"
@@ -78,7 +78,7 @@ export const MobileHeader = ({ title }: { title?: string }) => {
               newChat()
             }}
           />
-        </>
+        </div>
       )}
     </div>
   )

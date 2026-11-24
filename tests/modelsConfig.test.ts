@@ -59,7 +59,7 @@ describe('Multi-provider migration and chatConfig sync', () => {
     assert.equal(custom.apiKey, 'sk-custom-456')
   })
 
-  it('keeps builtin DeepSeek active when legacy endpoint is empty', () => {
+  it('keeps builtin DeepSeek active when legacy endpoint is empty and maps retired deepseek-pro to V4 Pro', () => {
     const migrated = migrateLegacyChatConfig({
       model: 'deepseek-pro',
       endpoint: '',
@@ -68,7 +68,7 @@ describe('Multi-provider migration and chatConfig sync', () => {
     })
 
     assert.equal(migrated.activeModel.providerId, BUILTIN_DEEPSEEK_ID)
-    assert.equal(migrated.activeModel.modelId, 'deepseek-pro')
+    assert.equal(migrated.activeModel.modelId, 'deepseek-v4-pro')
     const deepseek = migrated.providers.find((item) => item.id === BUILTIN_DEEPSEEK_ID)
     assert.ok(deepseek)
     assert.equal(deepseek.format, 'responses')
