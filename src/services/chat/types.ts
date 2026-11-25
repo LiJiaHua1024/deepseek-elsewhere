@@ -21,6 +21,13 @@ import type { UploadedImage } from '../imageUpload.js'
  * 导入的附件沿用导出产物里的文件 ID；本地没有原件的附件只展示文件名，不进入请求。
  * serverId 是 Files API 返回的 file_id，导入的数据或尚未上传成功的文件为 null，发送前补传。
  */
+export type CustomAttachmentMode =
+  | 'slice'
+  | 'original'
+  | 'pdf_text'
+  | 'pdf_images'
+  | 'pdf_original'
+
 export type FileAttachment = {
   id: string
   serverId: string | null
@@ -32,6 +39,8 @@ export type FileAttachment = {
   isImage: boolean
   /** 具体 MIME；导入时没有原件或无法识别的为空字符串，不影响图片身份。 */
   mimeType: string
+  /** 第三方接口下该附件实例的发送方式；导出归档时不写出。 */
+  customMode?: CustomAttachmentMode
 }
 
 /** 本地消息的分支关系；字段缺省时按线性消息列表处理。 */

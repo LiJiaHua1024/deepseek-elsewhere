@@ -807,3 +807,20 @@
 [data-android] body[data-ds-dark-theme] .editClose {
   background: rgb(255 255 255 / 10%);
 }
+
+.attachmentSlicing {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-brand-primary) 55%, transparent);
+}
+
+.sliceBadge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10px;
+  line-height: 15px;
+  pointer-events: none;
+}

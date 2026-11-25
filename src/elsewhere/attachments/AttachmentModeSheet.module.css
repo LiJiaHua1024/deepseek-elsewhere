@@ -1,0 +1,125 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  bottom: var(--android-button-nav-inset, 0px);
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.sheet {
+  box-sizing: border-box;
+  width: min(560px, 100%);
+  padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-shadow-lv3);
+  animation: attachment-sheet-enter 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes attachment-sheet-enter {
+  from { transform: translateY(24px); opacity: 0.7; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 3px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.close {
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.option {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-specific-input-major);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.optionSelected {
+  border-color: var(--dsw-alias-state-brand-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-brand-primary) 8%, var(--dsw-specific-input-major));
+}
+
+.optionText {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.optionTitle {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.optionDescription {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.check {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 10px;
+  color: var(--dsw-alias-state-brand-primary);
+}
+
+.previewLink {
+  display: block;
+  margin: 8px auto 0;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+ 
+  color: var(--dsw-alias-state-brand-primary);
+  font-size: 13px;
+  cursor: pointer;
+}

@@ -49,6 +49,7 @@ import { SystemPromptsSettings } from '../../elsewhere/prompts/PromptSettingsVie
 import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.js'
 import { useIsZh } from '../../elsewhere/text.js'
 import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
+import { AttachmentSettings } from '../../elsewhere/attachments/AttachmentSettings.js'
 import styles from './Settings.module.css'
 
 const ModelsIcon16 = () => (
@@ -191,6 +192,7 @@ const SettingsContent = () => {
               <TtsVoiceSetting />
               <LocationSetting />
               <UsageToggleSetting />
+              <AttachmentSettings />
             </>
           ) : section === 'models' ? (
             <ModelServicesSettings />

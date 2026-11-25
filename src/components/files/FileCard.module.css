@@ -121,3 +121,20 @@
   color: var(--dsw-alias-label-primary-foreground);
   background-color: var(--dsw-alias-state-error-primary);
 }
+
+.subCaption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusLabel {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-state-brand-primary) 12%, transparent);
+  color: var(--dsw-alias-state-brand-primary);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 500;
+}

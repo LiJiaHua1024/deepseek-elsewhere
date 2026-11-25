@@ -94,6 +94,9 @@ import {
   summarizeCurrentInput,
 } from './contextSummary.js'
 import { prepareCustomAttachments } from './customAttachments.js'
+import { isNativePdfRejectionError } from '../../elsewhere/attachments/pdfExtract.js'
+import { setAttachmentProgress } from '../../elsewhere/attachments/progress.js'
+import { showToast } from '../../components/base/toastState.js'
 import * as db from './db.js'
 import type { MigrationNotice } from './androidStorage.js'
 import {
@@ -962,7 +965,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
 export const stopReply = (sessionId: string) => getStreamController(sessionId)?.abort()
 
 const stripFileBlobs = (files: readonly DraftFilePayload[]): FileAttachment[] =>
-  files.map(({ id, serverId, serverImage, name, size, isImage, mimeType }) => ({
+  files.map(({ id, serverId, serverImage, name, size, isImage, mimeType, customMode }) => ({
     id,
     serverId,
     serverImage,
@@ -970,6 +973,7 @@ const stripFileBlobs = (files: readonly DraftFilePayload[]): FileAttachment[] =>
     size,
     isImage,
     mimeType,
+    customMode,
   }))
 
 const appendPendingFiles = (sessionId: string, files: readonly DraftFilePayload[]) => {
@@ -1575,6 +1579,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   let reduceInput = false
   let reducedInput: Awaited<ReturnType<typeof summarizeCurrentInput>> = null
   let invalidatedRetries = 0
+  const forcedLocalPdfIds = new Set<string>()
+  let pdfFallbackUsed = false
+  let lastNativePdfIds = new Set<string>()
   try {
     for (;;) {
       /** 附件补齐前出错属于上传失败，请求还没有发出 */
@@ -1612,15 +1619,33 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           prepared = await prepareFiles(sessionId, attempt, signal)
           preparing = false
         }
-        const inlineFiles = custom
+        const preparedAttachments = custom
           ? await prepareCustomAttachments(
               chatConfig.format,
               prepared.history,
               reducedInput?.question ?? prepared.question,
               (id) => loadOriginalFile(sessionId, id),
-              signal
+              signal,
+              {
+                forceLocalPdfIds: forcedLocalPdfIds,
+                onProgress: (item) => setAttachmentProgress(sessionId, item ? [item] : null),
+              }
             )
           : undefined
+        setAttachmentProgress(sessionId, null)
+        const inlineFiles = preparedAttachments?.inline
+        const nativePdfIds = preparedAttachments?.nativePdfIds ?? new Set<string>()
+        lastNativePdfIds = nativePdfIds
+        if (preparedAttachments?.truncations.length) {
+          const zh = useSettings.getState().locale === 'zh-CN'
+          for (const item of preparedAttachments.truncations) {
+            showToast(
+              zh
+                ? `扫描页共 ${item.totalPages} 页，已发送前 ${item.renderedPages} 页`
+                : `${item.totalPages} scanned pages; sent the first ${item.renderedPages}`
+            )
+          }
+        }
         if (reduceInput && !reducedInput) {
           reducedInput = await summarizeCurrentInput({
             apiKey,
@@ -1891,6 +1916,19 @@ ${memoryPromptBlock}` : baseSystem
             })
             break
           }
+          if (
+            custom &&
+            !pdfFallbackUsed &&
+            lastNativePdfIds.size > 0 &&
+            isNativePdfRejectionError(error)
+          ) {
+            pdfFallbackUsed = true
+            for (const id of lastNativePdfIds) {
+              forcedLocalPdfIds.add(id)
+            }
+            context = undefined
+            continue
+          }
           if (!custom) {
             if (
               invalidatedRetries < FILE_RETRY_LIMIT &&
@@ -1937,6 +1975,7 @@ ${memoryPromptBlock}` : baseSystem
       }
     }
   } finally {
+    setAttachmentProgress(sessionId, null)
     mcpClient.closeAllLegacyStreams()
     const activeSession = getSession(sessionId)
     const needsClientTitle =

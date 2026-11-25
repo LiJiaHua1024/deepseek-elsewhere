@@ -19,6 +19,7 @@ export const FileCard = ({
   onRetry,
   onRemove,
   onOpen,
+  statusLabel,
 }: {
   name: string
   size: number
@@ -27,6 +28,7 @@ export const FileCard = ({
   onRetry?: () => void
   onRemove?: () => void
   onOpen?: () => void
+  statusLabel?: string
 }) => {
   const t = useTranslate()
   const ext = getExtension(name)
@@ -63,7 +65,10 @@ export const FileCard = ({
       <div className={clsx(styles.icon, status === 'error' && onRetry && styles.retry)}>{icon}</div>
       <div className={styles.content}>
         <div className={styles.caption}>{name}</div>
-        <div className={styles.subCaption}>{description}</div>
+        <div className={styles.subCaption}>
+          <span>{description}</span>
+          {statusLabel ? <span className={styles.statusLabel}>{statusLabel}</span> : null}
+        </div>
       </div>
       {onRemove ? (
         <button

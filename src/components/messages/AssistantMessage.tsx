@@ -31,6 +31,7 @@ import { SiteThumbnails } from '../search/SiteLogo.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
 import { AndroidTextSelection } from './AndroidTextSelection.js'
 import { PythonCharts } from '../../elsewhere/python/PythonCharts.js'
+import { useAttachmentProgress } from '../../elsewhere/attachments/progress.js'
 import { ReadAloudButton } from './ReadAloudButton.js'
 import { CopyButton } from './CopyButton.js'
 import { ReplyArea } from './ReplyArea.js'
@@ -65,6 +66,8 @@ export const AssistantMessage = memo(function AssistantMessage({
 }) {
   const t = useTranslate()
   const customEndpoint = useSettings((state) => Boolean(state.chatConfig.endpoint))
+  const zh = useSettings((state) => state.locale === 'zh-CN')
+  const attachmentProgress = useAttachmentProgress((state) => state.sessions[sessionId])
   const format = useSettings((state) => state.chatConfig.format)
   const canReadAloud = useSettings((state) => Boolean(state.apiKey))
   const view = useReplyView(message, streaming)
@@ -127,6 +130,19 @@ export const AssistantMessage = memo(function AssistantMessage({
   }, [customEndpoint, isLast, message.id, message.stopReason, responseText, streaming])
   const waiting =
     streaming && view.steps.length === 0 && !view.answer && (android || !message.thinking)
+  const progressText = attachmentProgress?.length
+    ? attachmentProgress
+        .map((item) => {
+          const count = item.current && item.total ? `（${item.current}/${item.total}）` : ''
+          const enCount = item.current && item.total ? ` (${item.current}/${item.total})` : ''
+          if (item.kind === 'slice') {return zh ? `正在切分长图${count}` : `Slicing long image${enCount}`}
+          if (item.kind === 'pdf_render') {
+            return zh ? `正在渲染扫描页${count}` : `Rendering scanned pages${enCount}`
+          }
+          return zh ? '正在提取 PDF 文本' : 'Extracting PDF text'
+        })
+        .join(zh ? '，' : ', ')
+    : ''
   const hasClientTools = view.steps.some((step) => step.type === 'client_tool')
   const summaryEntry = `${message.id}-summary`
   return (
@@ -309,11 +325,18 @@ export const AssistantMessage = memo(function AssistantMessage({
       </div>
       <PythonCharts message={message} />
       {waiting ? (
-        <div className={styles.waiting}>
-          {[0, 1, 2].map((index) => (
-            <span key={index} className={styles.waitingDot} />
-          ))}
-        </div>
+        progressText ? (
+          <div className={clsx(styles.waiting, styles.processing)}>
+            <span className={styles.processingSpinner} />
+            <span>{progressText}</span>
+          </div>
+        ) : (
+          <div className={styles.waiting}>
+            {[0, 1, 2].map((index) => (
+              <span key={index} className={styles.waitingDot} />
+            ))}
+          </div>
+        )
       ) : null}
       {!streaming && !refused && !hasClientTools && view.searchResults.length > 0 ? (
         <div

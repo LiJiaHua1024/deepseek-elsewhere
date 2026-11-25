@@ -10,7 +10,7 @@ import {
   type UploadTask,
 } from '../attachments.js'
 import { loadFile } from './db.js'
-import type { FileAttachment, UserMessage } from './types.js'
+import type { CustomAttachmentMode, FileAttachment, UserMessage } from './types.js'
 
 export type DraftAttachment = {
   /** 本地标识，也是附件原件与上传任务的 key */
@@ -28,6 +28,13 @@ export type DraftAttachment = {
   blob?: Blob | null
   /** 最近图片的本地媒体 ID，用于与选择面板同步选中状态。 */
   recentPhotoId?: string
+  customMode?: CustomAttachmentMode
+  probe?: {
+    width?: number
+    height?: number
+    estimatedSlices?: number
+    pageCount?: number
+  }
 }
 
 export type DraftFilePayload = FileAttachment & { blob?: Blob }
@@ -291,7 +298,10 @@ export const prepareDraftMessage = (
   const files: DraftFilePayload[] = []
   for (const attachment of draft.attachments) {
     if (attachment.existing) {
-      files.push({ ...attachment.existing })
+      files.push({
+        ...attachment.existing,
+        customMode: attachment.customMode ?? attachment.existing.customMode,
+      })
       continue
     }
     if (!attachment.file) {
@@ -310,6 +320,7 @@ export const prepareDraftMessage = (
       size: attachment.size,
       isImage: attachment.isImage,
       mimeType: attachment.mimeType,
+      customMode: attachment.customMode,
       blob: attachment.file,
     })
   }
@@ -370,6 +381,7 @@ export const startMessageEdit = (sessionId: string, message: UserMessage) => {
     isImage: file.isImage,
     previewUrl: null,
     existing: file,
+    customMode: file.customMode,
     blob: file.isImage ? undefined : null,
   }))
   useDrafts.setState({
@@ -516,3 +528,41 @@ export const clearAllDrafts = () => {
   }
   useDrafts.setState({ drafts: new Map(), editDrafts: new Map(), editing: null })
 }
+
+const patchAttachments = (
+  items: DraftAttachment[],
+  attachmentId: string,
+  patch: Partial<Pick<DraftAttachment, 'customMode' | 'probe'>>
+) => items.map((item) => (item.id === attachmentId ? { ...item, ...patch } : item))
+
+export const setDraftAttachmentMode = (
+  sessionId: string | null,
+  attachmentId: string,
+  customMode?: CustomAttachmentMode
+) =>
+  updateDraft(sessionId, (draft) => ({
+    ...draft,
+    attachments: patchAttachments(draft.attachments, attachmentId, { customMode }),
+  }))
+
+export const setEditAttachmentMode = (attachmentId: string, customMode?: CustomAttachmentMode) =>
+  updateActiveEdit((editing) => ({
+    ...editing,
+    attachments: patchAttachments(editing.attachments, attachmentId, { customMode }),
+  }))
+
+export const setDraftAttachmentProbe = (
+  sessionId: string | null,
+  attachmentId: string,
+  probe?: DraftAttachment['probe']
+) =>
+  updateDraft(sessionId, (draft) => ({
+    ...draft,
+    attachments: patchAttachments(draft.attachments, attachmentId, { probe }),
+  }))
+
+export const setEditAttachmentProbe = (attachmentId: string, probe?: DraftAttachment['probe']) =>
+  updateActiveEdit((editing) => ({
+    ...editing,
+    attachments: patchAttachments(editing.attachments, attachmentId, { probe }),
+  }))

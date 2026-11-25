@@ -85,6 +85,7 @@ import {
   setShowUsageInChat,
   useElsewherePrefs,
 } from '../../elsewhere/preferences.js'
+import { AttachmentSettings } from '../../elsewhere/attachments/AttachmentSettings.js'
 import styles from './AndroidSettings.module.css'
 
 const appVersion = document.querySelector<HTMLMetaElement>(
@@ -1327,6 +1328,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 'Hide the context ring and summary divider in chat.'
               )}
             </p>
+            <AttachmentSettings cards />
           </>
         ) : null}
         {screen === 'background' ? (

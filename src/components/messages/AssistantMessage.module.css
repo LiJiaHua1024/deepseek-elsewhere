@@ -306,3 +306,24 @@
 [data-no-flex-gap] .actions > .continueButton {
   margin-left: auto;
 }
+
+.processing {
+  gap: 8px;
+  color: var(--dsw-alias-label-dimmed);
+  font-size: 13px;
+}
+
+.processingSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--dsw-alias-label-dimmed) 28%, transparent);
+  border-top-color: var(--dsw-alias-label-dimmed);
+  animation: attachment-progress-spin 0.8s linear infinite;
+}
+
+@keyframes attachment-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

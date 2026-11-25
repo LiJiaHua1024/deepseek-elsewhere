@@ -54,7 +54,8 @@ export const createConfig = ({
         !chunk.canBeInitial() &&
         chunk.name !== 'markdown-parser' &&
         chunk.name !== 'history-import' &&
-        chunk.name !== 'python-worker',
+        chunk.name !== 'python-worker' &&
+        chunk.name !== 'pdfjs-worker',
     },
   },
   resolve: {
@@ -100,7 +101,12 @@ export const createConfig = ({
     }),
     new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
     new rspack.CopyRspackPlugin({
-      patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
+      patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' },
+      ...["UniGB-UTF16-H.bcmap","UniCNS-UTF16-H.bcmap","UniJIS-UTF16-H.bcmap","UniKS-UTF16-H.bcmap","Adobe-GB1-UCS2.bcmap","Adobe-CNS1-UCS2.bcmap"].map((name) => ({
+        from: path.resolve(root, 'node_modules/pdfjs-dist/cmaps', name),
+        to: path.posix.join('static/pdfjs/cmaps', name),
+        toType: 'file' as const,
+      }))],
     }),
   ],
   performance: { hints: false },
