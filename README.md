@@ -28,7 +28,7 @@ Elsewhere 是一个面向日常与深度对话的纯粹 AI 聊天客户端，基
 
 前往 [GitHub Releases](https://github.com/LiJiaHua1024/deepseek-elsewhere/releases) 下载最新 APK 并安装至 Android 设备。
 
-> 当前源码构建的 APK 支持 Android 9（API 级别 28）及以上版本，前端兼容 WebView 66+。兼容测试覆盖 Android 10 的预装 WebView 74、升级后的 WebView 83，以及 Android 11 的预装 WebView 83。
+> 当前源码构建的 APK 支持 Android 9（API 级别 28）及以上版本，前端兼容 WebView 63+。兼容测试覆盖 Android 10 的预装 WebView 74、升级后的 WebView 83、Android 11 的预装 WebView 83，以及 Chrome 63/64 时代内核的启动与设置交互。
 
 ## 使用步骤
 

@@ -200,7 +200,7 @@ final class PyodideRuntimeStore {
         try {
             FileInputStream stream = new FileInputStream(target);
             String mime = resolveMime(rel);
-            Map<String, String> headers = Map.of(
+            Map<String, String> headers = Maps.of(
                 "Cache-Control", "public, max-age=31536000, immutable",
                 "Cross-Origin-Resource-Policy", "same-origin"
             );
@@ -525,7 +525,7 @@ final class PyodideRuntimeStore {
             "UTF-8",
             404,
             "Not Found",
-            Map.of(),
+            Maps.of(),
             new ByteArrayInputStream(new byte[0])
         );
     }

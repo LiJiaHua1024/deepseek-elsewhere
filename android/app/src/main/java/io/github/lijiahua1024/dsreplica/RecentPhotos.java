@@ -25,11 +25,11 @@ final class RecentPhotos {
     private static final Uri IMAGES = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         ? MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         : MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-    private static final Map<String, String> IMAGE_HEADERS = Map.of(
+    private static final Map<String, String> IMAGE_HEADERS = Maps.of(
         "Content-Security-Policy", "default-src 'none'; sandbox",
         "X-Content-Type-Options", "nosniff",
         "Cache-Control", "no-store");
-    private volatile Map<String, Photo> photos = Map.of();
+    private volatile Map<String, Photo> photos = Maps.of();
     private final ContentResolver resolver;
 
     RecentPhotos(ContentResolver resolver) {
@@ -45,7 +45,7 @@ final class RecentPhotos {
             + MediaStore.Images.Media._ID + " DESC";
         try (Cursor rows = resolver.query(IMAGES, columns, null, null, order)) {
             if (rows == null) {
-                photos = Map.of();
+                photos = Maps.of();
                 return "[]";
             }
             while (result.length() < 20 && !Thread.currentThread().isInterrupted() && rows.moveToNext()) {
@@ -66,10 +66,10 @@ final class RecentPhotos {
                 result.put(photo);
             }
         } catch (RuntimeException | JSONException ignored) {
-            photos = Map.of();
+            photos = Maps.of();
             return "[]";
         }
-        photos = Map.copyOf(nextPhotos);
+        photos = Maps.copyOf(nextPhotos);
         return result.toString();
     }
 

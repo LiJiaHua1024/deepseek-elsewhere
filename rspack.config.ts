@@ -5,8 +5,9 @@ import { defineConfig } from '@rspack/cli'
 import { rspack, type Configuration } from '@rspack/core'
 
 const dev = process.env.NODE_ENV === 'development' || process.argv.includes('serve')
-// Android 9 stock WebView ships from Chrome 66+ and Android 10 ships with WebView 74+.
-const targets = ['chrome >= 66', 'edge >= 105', 'safari >= 16', 'firefox >= 110']
+// Huawei EMUI 9 devices ship a system WebView forked near Chrome 63 that never updates
+// (no Google Play in China), so the floor sits below Android 9's stock WebView 66.
+const targets = ['chrome >= 60', 'edge >= 105', 'safari >= 16', 'firefox >= 110']
 const root = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8')

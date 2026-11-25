@@ -1,4 +1,6 @@
+import 'abortcontroller-polyfill'
 import './utils/abort.js'
+import './utils/resizeObserver.js'
 import { createRoot } from 'react-dom/client'
 import { App } from './app/App.js'
 import { android } from './app/android.js'

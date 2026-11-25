@@ -74,20 +74,20 @@ final class CustomChatTransport {
             String type = connection.getContentType();
             String mime = type != null && type.toLowerCase(Locale.ROOT).contains("text/event-stream")
                 ? "text/event-stream" : "text/plain";
-            emit.accept(event(id, "headers", Map.of("status", status, "mime", mime)));
+            emit.accept(event(id, "headers", Maps.of("status", status, "mime", mime)));
             try (InputStream input = status >= 400 ? connection.getErrorStream() : connection.getInputStream()) {
                 if (input != null) {
                     byte[] buffer = new byte[8192];
                     int count;
                     while (!exchange.cancelled && (count = input.read(buffer)) != -1) {
                         emit.accept(event(id, "data",
-                            Map.of("bytes", Base64.encodeToString(buffer, 0, count, Base64.NO_WRAP))));
+                            Maps.of("bytes", Base64.encodeToString(buffer, 0, count, Base64.NO_WRAP))));
                     }
                 }
             }
-            if (!exchange.cancelled) emit.accept(event(id, "end", Map.of()));
+            if (!exchange.cancelled) emit.accept(event(id, "end", Maps.of()));
         } catch (IOException | RuntimeException ignored) {
-            if (!exchange.cancelled) emit.accept(event(id, "error", Map.of()));
+            if (!exchange.cancelled) emit.accept(event(id, "error", Maps.of()));
         } finally {
             cancel(id);
         }

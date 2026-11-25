@@ -1,3 +1,4 @@
+import '@formatjs/intl-locale/polyfill.js'
 import '@formatjs/intl-displaynames/polyfill.js'
 import '@formatjs/intl-displaynames/locale-data/en.js'
 import '@formatjs/intl-displaynames/locale-data/zh.js'

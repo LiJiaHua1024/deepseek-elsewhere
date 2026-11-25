@@ -11,6 +11,12 @@ importers:
       '@formatjs/intl-displaynames':
         specifier: 8.0.3
         version: 8.0.3
+      '@formatjs/intl-locale':
+        specifier: 5.4.3
+        version: 5.4.3
+      '@juggle/resize-observer':
+        specifier: 3.4.0
+        version: 3.4.0
       '@types/katex':
         specifier: ^0.16.5
         version: 0.16.8
@@ -26,6 +32,9 @@ importers:
       '@types/react-dom':
         specifier: ~18.3.0
         version: 18.3.0
+      abortcontroller-polyfill:
+        specifier: 1.7.8
+        version: 1.7.8
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -147,14 +156,26 @@ packages:
   '@formatjs/intl-displaynames@8.0.3':
     resolution: {integrity: sha512-UhKG1OwrbQzZNKIcmZu+/JR5SOxE25RWmUzxaNfQ04AJ4OwxNkTvAbVX0ojnkm0i8Qs4E8ElIoBdA6F8XTkJXw==}
 
+  '@formatjs/intl-getcanonicallocales@3.3.1':
+    resolution: {integrity: sha512-GkXdVwb/4Y9qJaZ19BguPv2i9Vr+z5MrlmFa/9HR7WK2tMcCWZathuGhn7W/V3sFqUdAVB3uvmGuOxXwc61DJQ==}
+
+  '@formatjs/intl-locale@5.4.3':
+    resolution: {integrity: sha512-YdxSbfDifRIew7mukcwITPlhkomfHCcSzzbjEJqOGbod4wrfdUN7SmiZQU2Lr8zs/q/15ntZsthJ8NsW3P30mA==}
+
   '@formatjs/intl-localematcher@0.10.1':
     resolution: {integrity: sha512-gBqglQK9rXuHsLmM8wzTMBy4Xo4d0jamirIVKuEL8F1rwbskWdpMA1kZarSkny+uvr5q/K6GSzE0Rcq1wZLl3g==}
+
+  '@formatjs/intl-supportedvaluesof@3.0.1':
+    resolution: {integrity: sha512-+9TU+8tqsUqobFzQJEvfQ8Yukt1PYgL5WxYi/yW+hWVNx422wEo/TlVRLvIfdYqlVS048jfyu8piNagfhOV+2A==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
   '@iconify/utils@2.3.0':
     resolution: {integrity: sha512-GmQ78prtwYW6EtzXRU1rY+KwOKfz32PD7iJh6Iyqw68GiKuoZ2A6pRtzWONz5VQJbp50mEjXh/7NkumtrAgRKA==}
+
+  '@juggle/resize-observer@3.4.0':
+    resolution: {integrity: sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA==}
 
   '@mermaid-js/parser@0.6.3':
     resolution: {integrity: sha512-lnjOhe7zyHjc+If7yT4zoedx2vo4sHaTmtkl1+or8BRTnCtDmcTpAjpzDSfCZrshM5bCoz0GyidzadJAH1xobA==}
@@ -769,6 +790,9 @@ packages:
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [win32]
+
+  abortcontroller-polyfill@1.7.8:
+    resolution: {integrity: sha512-9f1iZ2uWh92VcrU9Y8x+LdM4DLj75VE0MJB8zuF1iUnroEptStw+DQ8EQPMUdfe5k+PkB1uUfDQfWbhstH8LrQ==}
 
   acorn@8.19.0:
     resolution: {integrity: sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==}
@@ -1448,7 +1472,18 @@ snapshots:
     dependencies:
       '@formatjs/intl-localematcher': 0.10.1
 
+  '@formatjs/intl-getcanonicallocales@3.3.1': {}
+
+  '@formatjs/intl-locale@5.4.3':
+    dependencies:
+      '@formatjs/intl-getcanonicallocales': 3.3.1
+      '@formatjs/intl-supportedvaluesof': 3.0.1
+
   '@formatjs/intl-localematcher@0.10.1':
+    dependencies:
+      '@formatjs/fast-memoize': 3.1.7
+
+  '@formatjs/intl-supportedvaluesof@3.0.1':
     dependencies:
       '@formatjs/fast-memoize': 3.1.7
 
@@ -1466,6 +1501,8 @@ snapshots:
       mlly: 1.8.2
     transitivePeerDependencies:
       - supports-color
+
+  '@juggle/resize-observer@3.4.0': {}
 
   '@mermaid-js/parser@0.6.3':
     dependencies:
@@ -1893,6 +1930,8 @@ snapshots:
 
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
+
+  abortcontroller-polyfill@1.7.8: {}
 
   acorn@8.19.0: {}
 

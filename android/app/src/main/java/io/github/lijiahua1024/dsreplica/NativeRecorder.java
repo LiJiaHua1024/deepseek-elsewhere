@@ -79,7 +79,7 @@ final class NativeRecorder {
             .putInt(16).putShort((short) 1).putShort((short) 1)
             .putInt(SAMPLE_RATE).putInt(SAMPLE_RATE * 2).putShort((short) 2).putShort((short) 16)
             .put(ascii("data")).putInt(pcm.length);
-        return new WebResourceResponse("audio/wav", null, 200, "OK", Map.of("Cache-Control", "no-store"),
+        return new WebResourceResponse("audio/wav", null, 200, "OK", Maps.of("Cache-Control", "no-store"),
             new SequenceInputStream(new ByteArrayInputStream(header.array()), new ByteArrayInputStream(pcm)));
     }
 
