@@ -42,6 +42,7 @@ import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import { MemorySettings } from '../../elsewhere/memory/MemorySettingsViews.js'
 import { useModelProviders } from '../../elsewhere/models/config.js'
 import { ModelServicesSettings } from '../../elsewhere/models/ModelSettingsViews.js'
 import { SystemPromptsSettings } from '../../elsewhere/prompts/PromptSettingsViews.js'
@@ -129,6 +130,7 @@ const sections: {
   { value: 'models', zh: '模型服务', en: 'Model services', icon: <ModelsIcon16 /> },
   { value: 'prompts', zh: '系统指令', en: 'Instructions', icon: <PromptsIcon16 /> },
   { value: 'tools', zh: '联网搜索与工具', en: 'Web Search & Tools', icon: <ToolsIcon16 /> },
+  { value: 'memory', zh: '聊天记忆', en: 'Chat memory', icon: <PromptsIcon16 /> },
   { value: 'account', label: 'accountManagement', icon: <ProfileIcon /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
@@ -196,6 +198,8 @@ const SettingsContent = () => {
             <SystemPromptsSettings />
           ) : section === 'tools' ? (
             <SearchToolsSettings variant="web" />
+          ) : section === 'memory' ? (
+            <MemorySettings />
           ) : section === 'account' ? (
             <ProfileEditor />
           ) : (

@@ -11,11 +11,13 @@ import {
 } from '../../components/base/icons.js'
 import { openSettings } from '../../components/settings/settingsDialogState.js'
 import {
+  updateSessionMemoryEnabled,
   updateSessionModelRef,
   updateSessionPromptOverride,
   updateSessionReasoningEffort,
   useChatStore,
 } from '../../services/chat/store.js'
+import { useMemoryStore } from '../memory/config.js'
 import { useSystemPrompts } from '../prompts/config.js'
 import type { SessionPromptOverride } from '../prompts/types.js'
 import { useIsZh } from '../text.js'
@@ -26,6 +28,7 @@ import {
 } from './config.js'
 import {
   closeModelDrawer,
+  setDraftMemoryEnabled,
   setDraftPromptOverride,
   setDraftReasoningEffort,
   setModelDrawerTab,
@@ -79,6 +82,7 @@ const ModelSessionDrawerContent = () => {
       : undefined
   )
   const draft = useDraftSessionConfig()
+  const memoryGlobalEnabled = useMemoryStore((state) => state.config.enabled)
 
   useAndroidBackInterception(true)
 
@@ -96,6 +100,8 @@ const ModelSessionDrawerContent = () => {
     activeId !== null ? (session?.promptOverride ?? { mode: 'follow' }) : draft.promptOverride
   const currentEffort: ReasoningEffort =
     activeId !== null ? (session?.reasoningEffort ?? 'auto') : draft.reasoningEffort
+  const currentMemoryEnabled =
+    activeId !== null ? session?.memoryEnabled === true : draft.memoryEnabled
 
   const handlePromptChange = (override: SessionPromptOverride) => {
     if (activeId !== null) {
@@ -110,6 +116,14 @@ const ModelSessionDrawerContent = () => {
       updateSessionReasoningEffort(activeId, effort)
     } else {
       setDraftReasoningEffort(effort)
+    }
+  }
+
+  const handleMemoryChange = (enabled: boolean) => {
+    if (activeId !== null) {
+      updateSessionMemoryEnabled(activeId, enabled)
+    } else {
+      setDraftMemoryEnabled(enabled)
     }
   }
 
@@ -174,7 +188,7 @@ const ModelSessionDrawerContent = () => {
               className={clsx(styles.segmentBtn, tab === 'prompt' && styles.segmentBtnActive)}
               onClick={() => setModelDrawerTab('prompt')}
             >
-              {zh ? '指令与思考' : 'Instructions & Thinking'}
+              {zh ? '指令与参数' : 'Instructions & Params'}
             </button>
           </div>
         </div>
@@ -338,6 +352,33 @@ const ModelSessionDrawerContent = () => {
                       </button>
                     )
                   })}
+                </div>
+              </div>
+              <div className={styles.sectionBlock}>
+                <div className={styles.memoryRow}>
+                  <div className={styles.memoryText}>
+                    <div className={styles.memoryTitle}>{zh ? '本会话使用记忆' : 'Use memory in this session'}</div>
+                    <div className={styles.memoryDesc}>
+                      {memoryGlobalEnabled
+                        ? zh
+                          ? '关闭时本对话不读取也不写入记忆'
+                          : 'When off, this chat will not read or write memory'
+                        : zh
+                          ? '需要先在设置中启用记忆'
+                          : 'Enable memory in Settings first'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={currentMemoryEnabled}
+                    aria-label={zh ? '本会话使用记忆' : 'Use memory in this session'}
+                    className={clsx(styles.switch, currentMemoryEnabled && styles.switchOn)}
+                    disabled={!memoryGlobalEnabled}
+                    onClick={() => handleMemoryChange(!currentMemoryEnabled)}
+                  >
+                    <span />
+                  </button>
                 </div>
               </div>
             </div>

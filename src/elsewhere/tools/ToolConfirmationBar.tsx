@@ -14,29 +14,49 @@ export const ToolConfirmationBar = ({ sessionId }: { sessionId: string | null })
     return null
   }
 
-  const expanded = expandedId === item.id
-  const targetLabel = item.serverName
-    ? `${item.serverName} · ${item.displayName}`
-    : item.displayName
+  const isMemoryWrite = item.toolName === 'memory_write'
+  const expanded = isMemoryWrite || expandedId === item.id
+  const targetLabel = isMemoryWrite
+    ? item.memoryPreview?.path ??
+      (typeof item.input.path === 'string' ? item.input.path : item.displayName)
+    : item.serverName
+      ? `${item.serverName} · ${item.displayName}`
+      : item.displayName
 
   return (
     <div className={styles.bar} role="region" aria-label={zh ? '确认调用工具' : 'Confirm tool call'}>
       <div className={styles.header}>
         <div className={styles.titleGroup}>
-          <span className={styles.title}>{zh ? '确认调用工具' : 'Confirm tool call'}</span>
+          <span className={styles.title}>
+            {isMemoryWrite
+              ? zh
+                ? '确认写入记忆'
+                : 'Confirm memory write'
+              : zh
+                ? '确认调用工具'
+                : 'Confirm tool call'}
+          </span>
           <span className={styles.target}>{targetLabel}</span>
         </div>
-        <button
-          type="button"
-          className={styles.toggleButton}
-          onClick={() => setExpandedId(expanded ? null : item.id)}
-        >
-          {expanded ? (zh ? '收起参数' : 'Hide args') : zh ? '查看参数' : 'View args'}
-        </button>
+        {!isMemoryWrite ? (
+          <button
+            type="button"
+            className={styles.toggleButton}
+            onClick={() => setExpandedId(expanded ? null : item.id)}
+          >
+            {expanded ? (zh ? '收起参数' : 'Hide args') : zh ? '查看参数' : 'View args'}
+          </button>
+        ) : null}
       </div>
 
       {expanded ? (
-        <pre className={styles.argsPreview}>{JSON.stringify(item.input, null, 2)}</pre>
+        <pre className={styles.argsPreview}>
+          {isMemoryWrite
+            ? item.memoryPreview?.diffText ||
+              item.memoryPreview?.message ||
+              JSON.stringify(item.input, null, 2)
+            : JSON.stringify(item.input, null, 2)}
+        </pre>
       ) : null}
 
       <div className={styles.actions}>
@@ -52,15 +72,17 @@ export const ToolConfirmationBar = ({ sessionId }: { sessionId: string | null })
           className={clsx(styles.button, styles.allowOnceButton)}
           onClick={() => resolveToolConfirmation(item.id, 'allow_once')}
         >
-          {zh ? '允许一次' : 'Allow once'}
+          {isMemoryWrite ? (zh ? '允许写入' : 'Allow write') : zh ? '允许一次' : 'Allow once'}
         </button>
-        <button
-          type="button"
-          className={clsx(styles.button, styles.allowSessionButton)}
-          onClick={() => resolveToolConfirmation(item.id, 'allow_session')}
-        >
-          {zh ? '本会话允许' : 'Allow session'}
-        </button>
+        {!isMemoryWrite ? (
+          <button
+            type="button"
+            className={clsx(styles.button, styles.allowSessionButton)}
+            onClick={() => resolveToolConfirmation(item.id, 'allow_session')}
+          >
+            {zh ? '本会话允许' : 'Allow session'}
+          </button>
+        ) : null}
       </div>
     </div>
   )

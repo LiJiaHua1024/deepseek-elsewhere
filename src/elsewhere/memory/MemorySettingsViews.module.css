@@ -1,0 +1,684 @@
+.container {
+  --memory-surface: #f7f8fa;
+  --memory-card: #ffffff;
+  --memory-fill: #f2f4f7;
+  --memory-brand: #3964fe;
+  --memory-brand-fill: #edf3fe;
+  --memory-brand-border: #b7c8fe;
+  --memory-text: #0f1115;
+  --memory-text-2: #5c6168;
+  --memory-text-3: #868b93;
+  --memory-line: rgba(0, 0, 0, 0.08);
+  --memory-green: #15803d;
+  --memory-green-bg: #ecfdf3;
+  --memory-red: #dc2626;
+  --memory-red-bg: #fef2f2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--memory-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+[data-ds-dark-theme] .container {
+  --memory-surface: #1b1b1d;
+  --memory-card: #262629;
+  --memory-fill: #202023;
+  --memory-brand: #5686fe;
+  --memory-brand-fill: #283142;
+  --memory-brand-border: #4868b2;
+  --memory-text: #f9fafb;
+  --memory-text-2: #cfd3d6;
+  --memory-text-3: #9a9fa6;
+  --memory-line: rgba(255, 255, 255, 0.1);
+  --memory-green: #4ed17e;
+  --memory-green-bg: #1a3324;
+  --memory-red: #f87171;
+  --memory-red-bg: #351d1e;
+}
+
+.androidContainer {
+  gap: 12px;
+}
+
+.heroCard,
+.actionCard,
+.cardPadded,
+.noteCard,
+.emptyCard,
+.previewBox,
+.editorCard {
+  border: 1px solid var(--memory-line);
+  border-radius: 16px;
+  background: var(--memory-card);
+}
+
+.heroCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.heroText {
+  min-width: 0;
+  flex: 1;
+}
+
+.heroTitle,
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--memory-text);
+}
+
+.heroDesc,
+.cardDesc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--memory-text-3);
+}
+
+.switch {
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--memory-line);
+  cursor: pointer;
+  transition: background-color 160ms;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  span {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    transition: transform 160ms;
+  }
+}
+
+.switchOn {
+  background: var(--memory-brand);
+
+  span {
+    transform: translateX(16px);
+  }
+}
+
+.actionCard {
+  overflow: hidden;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--memory-text);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+
+  & + & {
+    border-top: 1px solid var(--memory-line);
+  }
+
+  &:hover {
+    background: var(--memory-fill);
+  }
+}
+
+.actionMeta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--memory-text-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--memory-text-3);
+}
+
+.smallPrimary,
+.linkButton {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--memory-brand-fill);
+  color: var(--memory-brand);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.linkButton {
+  background: transparent;
+}
+
+.searchInput,
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--memory-line);
+  border-radius: 12px;
+  outline: none;
+  background: var(--memory-card);
+  color: var(--memory-text);
+  font: inherit;
+  font-size: 13px;
+
+  &:focus {
+    border-color: var(--memory-brand);
+  }
+}
+
+.noteList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.noteCard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  padding: 12px 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--memory-fill);
+  }
+}
+
+.noteTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.noteName {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--ds-font-family-code, monospace);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.indexBadge {
+  flex-shrink: 0;
+  border-radius: 6px;
+  padding: 2px 5px;
+  background: var(--memory-fill);
+  color: var(--memory-text-3);
+  font-size: 10px;
+}
+
+.notePreview {
+  overflow: hidden;
+  color: var(--memory-text-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noteTime {
+  color: var(--memory-text-3);
+  font-size: 11px;
+}
+
+.emptyCard {
+  padding: 24px 14px;
+  color: var(--memory-text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.editorTopbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.backButton {
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--memory-brand);
+  font: inherit;
+  cursor: pointer;
+}
+
+.editorPathTitle {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--ds-font-family-code, monospace);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--memory-text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.editorArea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 300px;
+  padding: 12px;
+  border: 1px solid var(--memory-line);
+  border-radius: 12px;
+  outline: none;
+  resize: vertical;
+  background: var(--memory-fill);
+  color: var(--memory-text);
+  font-family: var(--ds-font-family-code, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+
+  &:focus {
+    border-color: var(--memory-brand);
+  }
+}
+
+.editorActions,
+.bottomActions,
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.primaryButtonWide {
+  min-height: 36px;
+  border-radius: 11px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.primaryButton,
+.primaryButtonWide {
+  border: 1px solid var(--memory-brand);
+  background: var(--memory-brand);
+  color: #fff;
+}
+
+.primaryButtonWide {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.secondaryButton {
+  border: 1px solid var(--memory-line);
+  background: var(--memory-card);
+  color: var(--memory-text-2);
+}
+
+.dangerButton {
+  margin-right: auto;
+  border: 1px solid var(--memory-line);
+  background: var(--memory-card);
+  color: var(--memory-red);
+}
+
+.previewBox {
+  padding: 14px;
+}
+
+.previewGap {
+  height: 8px;
+}
+
+.previewHeading {
+  margin: 8px 0 6px;
+  color: var(--memory-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.previewLine {
+  position: relative;
+  margin: 5px 0;
+  padding-left: 0;
+}
+
+.previewBullet {
+  padding-left: 14px;
+
+  &::before {
+    position: absolute;
+    top: 8px;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--memory-text-3);
+    content: '';
+  }
+}
+
+.previewText {
+  color: var(--memory-text);
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.sourceMeta {
+  display: block;
+  margin-top: 1px;
+  color: var(--memory-text-3);
+  font-size: 10px;
+}
+
+.wikiLink {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--memory-brand);
+  font: inherit;
+  font-family: var(--ds-font-family-code, monospace);
+  font-size: 0.94em;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.wikiLinkMissing {
+  color: var(--memory-red);
+}
+
+.modelHint,
+.reviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  color: var(--memory-text-3);
+  font-size: 12px;
+}
+
+.cardPadded {
+  padding: 14px;
+}
+
+.confirmBox {
+  margin-top: 12px;
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--memory-fill);
+  color: var(--memory-text-2);
+  font-size: 12px;
+}
+
+.confirmActions {
+  margin-top: 10px;
+}
+
+.proposalGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupLabel {
+  padding: 0 4px;
+  color: var(--memory-text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.proposalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid var(--memory-brand-border);
+  border-radius: 14px;
+  padding: 11px;
+  background: var(--memory-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proposalOff {
+  border-color: var(--memory-line);
+  opacity: 0.55;
+}
+
+.proposalTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.proposalFile {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--ds-font-family-code, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--memory-line);
+  border-radius: 5px;
+  color: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.checkboxOn {
+  border-color: var(--memory-brand);
+  background: var(--memory-brand);
+  color: #fff;
+}
+
+.diffBox {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.diffOld,
+.diffNew {
+  border-radius: 8px;
+  padding: 5px 7px;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.diffOld {
+  background: var(--memory-red-bg);
+  color: var(--memory-red);
+}
+
+.diffNew {
+  background: var(--memory-green-bg);
+  color: var(--memory-green);
+}
+
+.proposalReason {
+  color: var(--memory-text-3);
+  font-size: 10.5px;
+}
+
+.syncModeControls {
+  margin-top: 14px;
+}
+
+.completionCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-block: 18px;
+}
+
+.completionStatus {
+  color: var(--memory-green);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.completionCard .secondaryButton {
+  min-width: 96px;
+}
+
+.zipModeSection {
+  margin-top: 12px;
+}
+
+.zipModeLabel {
+  margin-bottom: 6px;
+  color: var(--memory-text-3);
+  font-size: 11px;
+}
+
+.zipActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--memory-line);
+
+  button {
+    width: 100%;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .zipActions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.segmentedSmall {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.segmentButton {
+  min-height: 34px;
+  border: 1px solid var(--memory-line);
+  border-radius: 10px;
+  background: var(--memory-surface);
+  color: var(--memory-text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.segmentButtonOn {
+  border-color: var(--memory-brand-border);
+  background: var(--memory-brand-fill);
+  color: var(--memory-brand);
+  font-weight: 500;
+}
+
+.githubForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--memory-line);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.statusText {
+  padding: 0 4px;
+  color: var(--memory-text-3);
+  font-size: 12px;
+}
+
+.statusError {
+  color: var(--memory-red);
+}
+
+.statusOk {
+  color: var(--memory-green);
+}

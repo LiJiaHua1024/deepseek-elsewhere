@@ -208,3 +208,16 @@ export const buildRequestSystemPrompt = ({
   }
   return injectLocalDateTime(trimmed, now)
 }
+
+export const buildMemorySystemPromptBlock = (memoryIndex: string): string => {
+  const index = memoryIndex.trim()
+  if (!index) {
+    return ''
+  }
+  return [
+    '## 聊天记忆',
+    '本会话启用了本地长期记忆。只有当事实、偏好、决定或项目背景对以后的对话有长期价值时才写入；不要保存一次性细节、密码或密钥。读取记忆时使用 memory_read 或 memory_search，写入时保持简洁并使用 memory_write。已有内容可能不完整或过时，与用户当前明确表述冲突时以当前表述为准。',
+    '',
+    index,
+  ].join('\n')
+}

@@ -17,6 +17,18 @@ const IconCodeOutline16 = () => (
   </svg>
 )
 
+const IconBookOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M3 12.8A1.8 1.8 0 0 1 4.8 11h8.2M4.8 2h8.2v12H4.8A1.8 1.8 0 0 1 3 12.2V3.8A1.8 1.8 0 0 1 4.8 2Z"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 const IconToolOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -144,6 +156,39 @@ export const ClientToolTimelineRow = ({
       suffixError = true
     } else if (block.status === 'stopped') {
       suffix = zh ? ' · 已停止' : ' · Stopped'
+    }
+  } else if (
+    block.name === 'memory_read' ||
+    block.name === 'memory_search' ||
+    block.name === 'memory_write'
+  ) {
+    const memoryMeta = block.meta?.kind === 'memory' ? block.meta : undefined
+    const rawPath =
+      memoryMeta?.path ?? (typeof block.input.path === 'string' ? block.input.path : '')
+    const noteLabel = rawPath.replace(/.md$/i, '').split('/').at(-1) ?? rawPath
+    icon = <IconBookOutline16 />
+    if (block.name === 'memory_read') {
+      title = (zh ? '读取记忆' : 'Read memory') + (noteLabel ? ' · ' + noteLabel : '')
+    } else if (block.name === 'memory_write') {
+      title = (zh ? '更新记忆' : 'Update memory') + (noteLabel ? ' · ' + noteLabel : '')
+    } else {
+      title = zh ? '检索记忆' : 'Search memory'
+      const query = memoryMeta?.query ?? (typeof block.input.query === 'string' ? block.input.query : '')
+      if (query.trim()) {
+        queryLabels = [query.trim()]
+      }
+      if (block.status === 'done' && memoryMeta?.resultCount !== undefined) {
+        const count = memoryMeta.resultCount
+        suffix = zh ? ' · ' + count + ' 条结果' : ' · ' + count + (count === 1 ? ' result' : ' results')
+      }
+    }
+    if (failed) {
+      suffix = zh ? ' · 失败' : ' · Failed'
+      suffixError = true
+    } else if (block.status === 'stopped') {
+      suffix = zh ? ' · 已停止' : ' · Stopped'
+    } else if (block.status === 'awaiting_confirmation') {
+      suffix = zh ? ' · 等待确认' : ' · Awaiting confirmation'
     }
   } else {
     const toolLabel = block.displayName ?? block.name

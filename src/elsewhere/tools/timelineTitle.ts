@@ -56,6 +56,15 @@ export const getClientToolsAreaTitle = (
       if (runningStep.block.name === 'search_history') {
         return zh ? `正在搜索历史对话 · 第 ${n} 步` : `Searching history · Step ${n}`
       }
+      if (runningStep.block.name === 'memory_read') {
+        return zh ? `正在读取记忆 · 第 ${n} 步` : `Reading memory · Step ${n}`
+      }
+      if (runningStep.block.name === 'memory_search') {
+        return zh ? `正在检索记忆 · 第 ${n} 步` : `Searching memory · Step ${n}`
+      }
+      if (runningStep.block.name === 'memory_write') {
+        return zh ? `正在更新记忆 · 第 ${n} 步` : `Updating memory · Step ${n}`
+      }
       const label = runningStep.block.displayName || runningStep.block.name
       return zh ? `正在调用 ${label} · 第 ${n} 步` : `Running ${label} · Step ${n}`
     }
@@ -72,6 +81,9 @@ export const getClientToolsAreaTitle = (
 
   const stepCount = toolSteps.length
   const hasThinking = view.steps.some((step) => step.type === 'thinking')
+  const memoryNames = new Set(['memory_read', 'memory_search', 'memory_write'])
+  const hasOnlyMemoryTools =
+    toolSteps.length > 0 && toolSteps.every((step) => memoryNames.has(step.block.name))
   const hasOnlySearchTools =
     toolSteps.length > 0 &&
     toolSteps.every(
@@ -79,7 +91,7 @@ export const getClientToolsAreaTitle = (
     )
 
   if (!streaming && !hasResponse) {
-    if (hasOnlySearchTools) {
+  if (hasOnlySearchTools) {
       return zh
         ? `已停止检索（${stepCount} 步）`
         : `Search stopped (${stepCount} ${stepCount === 1 ? 'step' : 'steps'})`
@@ -123,6 +135,17 @@ export const getClientToolsAreaTitle = (
   }
 
   const seconds = Math.max(1, Math.round(totalMs / 1000))
+  if (hasOnlyMemoryTools && !hasThinking) {
+    const hasWrite = toolSteps.some((step) => step.block.name === 'memory_write')
+    const hasRead = toolSteps.some((step) => step.block.name !== 'memory_write')
+    if (hasWrite && hasRead) {
+      return zh ? `已读取并更新记忆（用时 ${seconds} 秒）` : `Read & updated memory (${seconds}s)`
+    }
+    if (hasWrite) {
+      return zh ? `已更新记忆（用时 ${seconds} 秒）` : `Updated memory (${seconds}s)`
+    }
+    return zh ? `已读取记忆（用时 ${seconds} 秒）` : `Read memory (${seconds}s)`
+  }
   if (hasOnlySearchTools) {
     if (hasThinking) {
       return zh

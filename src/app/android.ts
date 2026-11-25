@@ -25,6 +25,8 @@ export type AndroidBridge = {
   writeChatConfig: (value: string | null) => boolean
   readProviderSecrets?: () => string | null
   writeProviderSecrets?: (value: string | null) => boolean
+  readMemorySyncSecret?: () => string | null
+  writeMemorySyncSecret?: (value: string | null) => boolean
   beginChatRequest: (endpoint: string, format: string, body: string) => string | null
   cancelChatRequest: (id: string) => void
   beginHttpRequest?: (requestId: string, payload: string) => boolean
@@ -87,7 +89,7 @@ export const android =
 
 export type NativeHttpRequestOptions = {
   url: string
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   headers?: Record<string, string>
   body?: string
   timeoutMs?: number

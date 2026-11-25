@@ -51,6 +51,17 @@ export type ToolExecutionResult = {
     | { kind: 'fetch'; url: string; title: string | null; truncated: boolean; charCount: number }
     | { kind: 'python'; images?: string[]; truncated?: boolean }
     | { kind: 'history'; query: string; count: number; truncated?: boolean }
+    | {
+        kind: 'memory'
+        operation: 'read' | 'search' | 'write'
+        path?: string
+        query?: string
+        resultCount?: number
+        writeMode?: 'append' | 'replace' | 'delete_line' | 'create'
+        diffText?: string
+        changed?: boolean
+        truncated?: boolean
+      }
     | { kind: 'generic'; summary?: string; truncated?: boolean }
 }
 

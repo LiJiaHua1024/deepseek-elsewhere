@@ -1,5 +1,7 @@
 import { useMcpServers, getEnabledMcpToolsCount } from '../mcp/config.js'
 import { buildActiveMcpTools } from '../mcp/tools.js'
+import { isMemoryEffectivelyEnabled } from '../memory/config.js'
+import { createMemoryTools } from '../memory/tools.js'
 import { useBuiltinToolsConfig } from '../python/config.js'
 import { usePyodideRuntime } from '../python/runtimeState.js'
 import { isSearchEngineReady } from '../search/config.js'
@@ -104,15 +106,18 @@ export const countActiveExtraTools = (): number => {
   const mcpCount = useMcpServers
     .getState()
     .servers.filter((server) => getEnabledMcpToolsCount(server) > 0).length
-  return (builtin.pythonEnabled && pyodideReady ? 1 : 0) + (builtin.historySearchEnabled ? 1 : 0) + mcpCount
+  const memoryToolCount = isMemoryEffectivelyEnabled(true) ? 3 : 0
+  return (builtin.pythonEnabled && pyodideReady ? 1 : 0) + (builtin.historySearchEnabled ? 1 : 0) + mcpCount + memoryToolCount
 }
 
 export const buildActiveExtraTools = ({
   questionAttachments,
   historyDeps,
+  memoryEnabled = false,
 }: {
   questionAttachments?: readonly ToolFileAttachment[]
   historyDeps?: HistorySearchDependencies
+  memoryEnabled?: boolean
 } = {}): ClientToolDefinition[] => {
   const builtin = useBuiltinToolsConfig.getState()
   const pyodideReady = usePyodideRuntime.getState().installed
@@ -129,6 +134,15 @@ export const buildActiveExtraTools = ({
     const historyTool = createHistorySearchTool(historyDeps)
     usedNames.add(historyTool.name)
     tools.push(historyTool)
+  }
+
+  if (isMemoryEffectivelyEnabled(memoryEnabled)) {
+    for (const tool of createMemoryTools()) {
+      if (!usedNames.has(tool.name)) {
+        usedNames.add(tool.name)
+        tools.push(tool)
+      }
+    }
   }
 
   tools.push(...buildActiveMcpTools(usedNames))

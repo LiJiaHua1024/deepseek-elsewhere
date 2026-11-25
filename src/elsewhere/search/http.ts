@@ -80,7 +80,7 @@ export const performHttpRequest: HttpTransport = async (options, signal) => {
     const response = await fetch(options.url, {
       method,
       headers: options.headers,
-      body: method === 'POST' || (method === 'DELETE' && options.body) ? options.body : undefined,
+      body: method !== 'GET' && options.body !== undefined ? options.body : undefined,
       signal: timeout.signal,
     })
     const text = await response.text()
@@ -164,7 +164,7 @@ export const performHttpStream: HttpStreamTransport = (options, signal) => {
   const response = fetch(options.url, {
     method,
     headers: options.headers,
-    body: method === 'POST' || (method === 'DELETE' && options.body) ? options.body : undefined,
+    body: method !== 'GET' && options.body !== undefined ? options.body : undefined,
     signal: controller.signal,
   })
     .then(

@@ -27,6 +27,12 @@ import {
   scheduleSessionTitleFallback,
 } from '../../elsewhere/title.js'
 import { getSearchToolsRuntimeConfig } from '../../elsewhere/search/config.js'
+import {
+  initMemoryStore,
+  isMemoryEffectivelyEnabled,
+} from '../../elsewhere/memory/config.js'
+import { sortedMemoryNotes } from '../../elsewhere/memory/repository.js'
+import { previewMemoryWriteInput } from '../../elsewhere/memory/tools.js'
 import { mcpClient } from '../../elsewhere/mcp/protocol.js'
 import {
   beginBackgroundStream,
@@ -57,6 +63,7 @@ import type {
   ReasoningEffort,
 } from '../../elsewhere/models/types.js'
 import {
+  buildMemorySystemPromptBlock,
   buildRequestSystemPrompt,
   resolveEffectivePrompt,
   useSystemPrompts,
@@ -795,6 +802,30 @@ const writeSessionTitle = (id: string, title: string, reportError = true) => {
   void (reportError ? save.catch(db.reportStorageError('rename session')) : save.catch(() => {}))
 }
 
+const buildMemoryIndexForPrompt = (): string => {
+  const notes = sortedMemoryNotes()
+  if (notes.length === 0) {
+    return ''
+  }
+  const lines = notes.slice(0, 24).map((note) => {
+    const firstHeading = note.content
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.startsWith('#'))
+    const heading = firstHeading ? firstHeading.replace(/^#+\s*/, '').trim() : ''
+    return '- ' + note.path + (heading ? ' — ' + heading : '')
+  })
+  const indexNote = notes.find((note) => note.path === 'MEMORY.md')
+  const indexContent = indexNote?.content.trim().slice(0, 2400) ?? ''
+  return [
+    '记忆文件（共 ' + notes.length + ' 篇）：',
+    ...lines,
+    '',
+    'MEMORY.md 当前内容：',
+    indexContent,
+  ].join('\n')
+}
+
 const applyGeneratedTitle = (id: string, title: string, epoch: number) => {
   if (!title || epoch !== historyEpoch || get().importingHistory || deletingSessions.has(id)) {
     return
@@ -841,6 +872,14 @@ export const updateSessionPromptOverride = (
     return
   }
   updateSession(sessionId, (session) => ({ ...session, promptOverride }))
+  persist(sessionId)
+}
+
+export const updateSessionMemoryEnabled = (sessionId: string, memoryEnabled: boolean) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => ({ ...session, memoryEnabled }))
   persist(sessionId)
 }
 
@@ -978,6 +1017,7 @@ export const sendMessage = (targetSessionId: string | null) => {
       modelRef: useModelProviders.getState().activeModel,
       promptOverride: draftConfig.promptOverride,
       reasoningEffort: draftConfig.reasoningEffort,
+      memoryEnabled: draftConfig.memoryEnabled,
     }
     sessionId = session.id
     touchSession(session.id)
@@ -1643,8 +1683,18 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           window
         )
         const searchToolsConfig = getSearchToolsRuntimeConfig(apiKey)
+        const activeSessionBeforeTools = getSession(sessionId)
+        const memoryEnabledForSession = isMemoryEffectivelyEnabled(
+          activeSessionBeforeTools?.memoryEnabled
+        )
+        let memoryIndex = ''
+        if (memoryEnabledForSession) {
+          await initMemoryStore()
+          memoryIndex = buildMemoryIndexForPrompt()
+        }
         const activeExtraTools = buildActiveExtraTools({
           questionAttachments: activeQuestion.files,
+          memoryEnabled: memoryEnabledForSession,
           historyDeps: {
             getHistoryState: () => {
               const state = get()
@@ -1673,11 +1723,20 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           defaultPresetId,
           activeSession?.promptOverride
         )
-        const system = buildRequestSystemPrompt({
+        const baseSystem = buildRequestSystemPrompt({
           customEndpoint: custom,
           officialDefaultPrompt: SYSTEM_PROMPT,
           effectivePromptContent: preset?.content ?? '',
         })
+        const memoryPromptBlock = memoryEnabledForSession
+          ? buildMemorySystemPromptBlock(memoryIndex)
+          : ''
+        const system = memoryPromptBlock ? `${baseSystem}
+
+${memoryPromptBlock}` : baseSystem
+        if (memoryPromptBlock) {
+          estimatedInput += Math.ceil(memoryPromptBlock.length / 4)
+        }
         const body: CreateMessageRequest = {
           model: requestModel,
           max_tokens: requestMaxOutput,
@@ -1714,15 +1773,22 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             initialReply: reply,
             streamStep: (stepBody, stepSignal) =>
               streamChatMessage(chatConfig, apiKey, stepBody, stepSignal),
-            beforeExecute: ({ id: callId, tool, input }, helpers) =>
-              requestToolConfirmation({
+            beforeExecute: async ({ id: callId, tool, input }, helpers) => {
+              let memoryPreview
+              if (tool.name === 'memory_write') {
+                await initMemoryStore()
+                memoryPreview = previewMemoryWriteInput(input)
+              }
+              return requestToolConfirmation({
                 sessionId,
                 callId,
                 tool,
                 input,
+                ...(memoryPreview ? { memoryPreview } : {}),
                 signal,
                 onAwaiting: () => helpers?.setStatus('awaiting_confirmation'),
-              }),
+              })
+            },
             onReplyUpdate: (nextReply, immediate) => {
               reply = nextReply
               updateBackgroundStream(sessionId, deriveStreamPhase(nextReply))

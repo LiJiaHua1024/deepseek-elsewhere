@@ -49,6 +49,12 @@ import { ProfileIcon } from './ProfileAvatar.js'
 import { ProfileEditor } from './ProfileEditor.js'
 import { closeSettings, useSettingsDialog } from './settingsDialogState.js'
 import { BalanceCard } from '../../elsewhere/BalanceCard.js'
+import {
+  MemoryDreamView,
+  MemoryHomeView,
+  MemoryNoteEditorView,
+  MemorySyncView,
+} from '../../elsewhere/memory/MemorySettingsViews.js'
 import { useModelProviders } from '../../elsewhere/models/config.js'
 import {
   ModelManageView,
@@ -115,6 +121,10 @@ type Page =
   | 'modelManage'
   | 'prompts'
   | 'promptEdit'
+  | 'memory'
+  | 'memoryNote'
+  | 'memoryDream'
+  | 'memorySync'
   | 'data'
   | 'export'
   | 'font'
@@ -136,6 +146,10 @@ const parentPage: Record<Page, Page | null> = {
   modelManage: 'modelProviderDetail',
   prompts: 'root',
   promptEdit: 'prompts',
+  memory: 'root',
+  memoryNote: 'memory',
+  memoryDream: 'memory',
+  memorySync: 'memory',
   data: 'root',
   export: 'data',
   font: 'root',
@@ -521,6 +535,8 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const presets = useSystemPrompts((state) => state.presets)
   const defaultPresetId = useSystemPrompts((state) => state.defaultPresetId)
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
+  const [memoryNotePath, setMemoryNotePath] = useState<string | null>(null)
+  const [memoryNoteBackStack, setMemoryNoteBackStack] = useState<string[]>([])
   const defaultPromptName =
     (defaultPresetId ? presets.find((item) => item.id === defaultPresetId)?.name : null) ??
     tr('无', 'None')
@@ -583,6 +599,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     modelManage: tr('管理模型', 'Manage models'),
     prompts: tr('系统指令', 'System instructions'),
     promptEdit: editingPromptId ? tr('编辑预设', 'Edit preset') : tr('新建预设', 'New preset'),
+    memory: tr('聊天记忆', 'Chat memory'),
+    memoryNote: memoryNotePath ?? tr('新建笔记', 'New note'),
+    memoryDream: tr('整理记忆', 'Organize memory'),
+    memorySync: tr('同步与备份', 'Sync & backup'),
     data: tr('数据管理', 'Data management'),
     export: t('exportAllLabel'),
     font: tr('字体大小', 'Text size'),
@@ -653,6 +673,12 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     if (popup) {
       setPopup(null)
       setFile(null)
+      return
+    }
+    if (page === 'memoryNote' && memoryNoteBackStack.length > 0) {
+      const previous = memoryNoteBackStack[memoryNoteBackStack.length - 1]
+      setMemoryNoteBackStack((current) => current.slice(0, -1))
+      setMemoryNotePath(previous)
       return
     }
     const finish = () => {
@@ -900,6 +926,11 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 onClick={() => openPage('prompts')}
               />
               <Row
+                label={labels.memory}
+                icon={<PromptsIcon />}
+                onClick={() => openPage('memory')}
+              />
+              <Row
                 label={language}
                 value={languageLabel}
                 icon={<IconGlobeLanguageOutline14 />}
@@ -1098,6 +1129,42 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             onDeleted={back}
           />
         ) : null}
+        {screen === 'memory' ? (
+          <MemoryHomeView
+            variant="android"
+            onOpenNote={(path) => {
+              setMemoryNotePath(path)
+              setMemoryNoteBackStack([])
+              openPage('memoryNote')
+            }}
+            onCreateNote={() => {
+              setMemoryNotePath(null)
+              setMemoryNoteBackStack([])
+              openPage('memoryNote')
+            }}
+            onOpenDream={() => openPage('memoryDream')}
+            onOpenSync={() => openPage('memorySync')}
+          />
+        ) : null}
+        {screen === 'memoryNote' ? (
+          <MemoryNoteEditorView
+            variant="android"
+            path={memoryNotePath}
+            onBack={back}
+            onOpenNote={(path, sourcePath) => {
+              const currentPath = sourcePath ?? memoryNotePath
+              if (currentPath && currentPath !== path) {
+                setMemoryNoteBackStack((current) => [...current, currentPath])
+              }
+              setMemoryNotePath(path)
+              openPage('memoryNote')
+            }}
+            onPathChange={setMemoryNotePath}
+            onDeleted={back}
+          />
+        ) : null}
+        {screen === 'memoryDream' ? <MemoryDreamView variant="android" /> : null}
+        {screen === 'memorySync' ? <MemorySyncView variant="android" /> : null}
         {screen === 'data' ? (
           <>
             <p className={styles.caption}>

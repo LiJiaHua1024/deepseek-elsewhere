@@ -5,6 +5,7 @@ export type SettingsSection =
   | 'general'
   | 'models'
   | 'prompts'
+  | 'memory'
   | 'data'
   | 'account'
   | 'advanced'

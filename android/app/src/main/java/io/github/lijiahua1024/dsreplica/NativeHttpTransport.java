@@ -47,7 +47,7 @@ final class NativeHttpTransport {
                 return false;
             }
             String method = payload.optString("method", "GET").toUpperCase(Locale.ROOT);
-            if (!"GET".equals(method) && !"POST".equals(method) && !"DELETE".equals(method)) {
+            if (!"GET".equals(method) && !"POST".equals(method) && !"PUT".equals(method) && !"PATCH".equals(method) && !"DELETE".equals(method)) {
                 return false;
             }
             int timeoutMs = payload.has("timeoutMs")
@@ -117,7 +117,7 @@ final class NativeHttpTransport {
                     conn.setRequestProperty("User-Agent", DEFAULT_USER_AGENT);
                 }
 
-                if ("POST".equals(currentMethod) || ("DELETE".equals(currentMethod) && currentBody != null && !currentBody.isEmpty())) {
+                if (!"GET".equals(currentMethod) && currentBody != null) {
                     byte[] data = currentBody != null
                         ? currentBody.getBytes(StandardCharsets.UTF_8)
                         : new byte[0];

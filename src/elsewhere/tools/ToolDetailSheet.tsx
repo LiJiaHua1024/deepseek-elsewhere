@@ -29,6 +29,9 @@ const formatServiceLabel = (block: ClientToolCallBlock, zh: boolean): string => 
   if (block.name === 'search_history') {
     return zh ? '内置历史检索' : 'Built-in History Search'
   }
+  if (block.name === 'memory_read' || block.name === 'memory_search' || block.name === 'memory_write') {
+    return zh ? '聊天记忆' : 'Chat Memory'
+  }
   return block.serverName || (zh ? '内置工具' : 'Built-in Tool')
 }
 
@@ -174,7 +177,7 @@ const ToolDetailContent = ({ block }: { block: ClientToolCallBlock }) => {
         </div>
 
         <div className={styles.section}>
-          <div className={styles.sectionLabel}>{zh ? '返回结果' : 'Result'}</div>
+          <div className={styles.sectionLabel}>{block.name === 'memory_write' ? (zh ? '写入内容' : 'Write diff') : zh ? '返回结果' : 'Result'}</div>
           <pre
             className={clsx(
               styles.codeBox,

@@ -134,6 +134,8 @@ export type Session = {
   modelRef?: ActiveModelRef
   promptOverride?: SessionPromptOverride
   reasoningEffort?: ReasoningEffort
+  /** 会话级记忆开关；缺省按全局开关处理。 */
+  memoryEnabled?: boolean
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

@@ -25,11 +25,13 @@ export const setModelDrawerTab = (tab: ModelDrawerTab) =>
 export type DraftSessionConfig = {
   promptOverride: SessionPromptOverride
   reasoningEffort: ReasoningEffort
+  memoryEnabled: boolean
 }
 
 const DEFAULT_DRAFT_CONFIG: DraftSessionConfig = {
   promptOverride: { mode: 'follow' },
   reasoningEffort: 'auto',
+  memoryEnabled: false,
 }
 
 export const useDraftSessionConfig = create<DraftSessionConfig>(() => ({
@@ -42,10 +44,14 @@ export const setDraftPromptOverride = (promptOverride: SessionPromptOverride) =>
 export const setDraftReasoningEffort = (reasoningEffort: ReasoningEffort) =>
   useDraftSessionConfig.setState({ reasoningEffort })
 
+export const setDraftMemoryEnabled = (memoryEnabled: boolean) =>
+  useDraftSessionConfig.setState({ memoryEnabled })
+
 export const resetDraftSessionConfig = () =>
   useDraftSessionConfig.setState({
     promptOverride: { mode: 'follow' },
     reasoningEffort: 'auto',
+    memoryEnabled: false,
   })
 
 export const consumeDraftSessionConfig = (): DraftSessionConfig => {

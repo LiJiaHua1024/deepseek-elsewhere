@@ -69,6 +69,7 @@ public final class MainActivity extends Activity {
     private ApiKeyStore keys;
     private ApiKeyStore chatConfig;
     private ApiKeyStore providerSecrets;
+    private ApiKeyStore memorySyncSecret;
     private final CustomChatTransport customChat = new CustomChatTransport();
     private final NativeHttpTransport nativeHttp = new NativeHttpTransport();
     private final NativeHttpStreamTransport nativeHttpStream = new NativeHttpStreamTransport();
@@ -109,6 +110,7 @@ public final class MainActivity extends Activity {
         keys = new ApiKeyStore(this);
         chatConfig = new ApiKeyStore(this, "custom-chat");
         providerSecrets = new ApiKeyStore(this, "provider-secrets");
+        memorySyncSecret = new ApiKeyStore(this, "memory-sync-secret");
         pyodideStore = new PyodideRuntimeStore(this);
         profilePreferences = getSharedPreferences("account_profile", MODE_PRIVATE);
         recentPhotos = new RecentPhotos(getContentResolver());
@@ -643,6 +645,12 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean writeProviderSecrets(String value) { return providerSecrets.write(value); }
+
+        @JavascriptInterface
+        public String readMemorySyncSecret() { return memorySyncSecret.read(); }
+
+        @JavascriptInterface
+        public boolean writeMemorySyncSecret(String value) { return memorySyncSecret.write(value); }
 
         @JavascriptInterface
         public String beginChatRequest(String endpoint, String format, String body) {
