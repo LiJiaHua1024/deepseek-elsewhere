@@ -155,7 +155,6 @@
 .progressTrack {
   display: flex;
   align-items: stretch;
-  gap: 2px;
   width: 100%;
   height: 8px;
   border-radius: 999px;
@@ -166,14 +165,12 @@
 .segmentSingle,
 .segmentRecent {
   height: 100%;
-  border-radius: 999px;
   background-color: var(--dsw-alias-brand-primary);
   transition: width 200ms var(--ds-ease-in-out);
 }
 
 .segmentSummary {
   height: 100%;
-  border-radius: 999px;
   background-color: var(--dsw-static-blue-300);
   transition: width 200ms var(--ds-ease-in-out);
 }
