@@ -354,3 +354,39 @@
   border-radius: 8px;
   background: var(--search-skeleton-bg);
 }
+
+[data-no-flex-gap] .inputBox > * + * {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap] .row > * + * {
+  margin-left: 12px;
+}
+
+[data-no-flex-gap] .topLine > * + * {
+  margin-left: 10px;
+}
+
+[data-no-flex-gap] .snippetLine > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .branch > * + * {
+  margin-left: 3px;
+}
+
+[data-no-flex-gap] .empty > * + * {
+  margin-top: 14px;
+}
+
+[data-no-flex-gap] .skeletonList > * + * {
+  margin-top: 24px;
+}
+
+[data-no-flex-gap] .skeletonRow > * + * {
+  margin-left: 12px;
+}
+
+[data-no-flex-gap] .skeletonLines > * + * {
+  margin-top: 10px;
+}

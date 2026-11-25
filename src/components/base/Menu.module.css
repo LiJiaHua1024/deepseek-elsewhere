@@ -145,6 +145,22 @@
   }
 }
 
+[data-no-flex-gap] .option > * + * {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap][data-android] .sidebarMenu .option > * + * {
+  margin-left: 9.2444px;
+}
+
+[data-no-flex-gap][data-android] .userMessageMenu .option > * + * {
+  margin-left: 10.6667px;
+}
+
+[data-no-flex-gap][data-android] .assistantMessageMenu .option > * + * {
+  margin-left: 10.6667px;
+}
+
 .icon {
   display: flex;
   font-size: 16px;

@@ -499,6 +499,7 @@
     padding-top: 10px;
     padding-bottom: 10px;
     white-space: normal;
+    overflow-wrap: break-word;
     overflow-wrap: anywhere;
     max-width: 100%;
   }

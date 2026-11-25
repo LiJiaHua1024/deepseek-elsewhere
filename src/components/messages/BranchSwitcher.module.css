@@ -18,3 +18,7 @@
   white-space: nowrap;
   user-select: none;
 }
+
+[data-no-flex-gap] .switcher > * + * {
+  margin-left: 2px;
+}

@@ -94,3 +94,7 @@ body[data-ds-dark-theme] .highlight {
     }
   }
 }
+
+[data-no-flex-gap] .toolbar button > * + * {
+  margin-top: 2px;
+}

@@ -49,3 +49,7 @@
     height: 14px;
   }
 }
+
+[data-no-flex-gap] .button > * + * {
+  margin-left: 3px;
+}

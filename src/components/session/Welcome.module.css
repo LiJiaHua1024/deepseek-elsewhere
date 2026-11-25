@@ -61,7 +61,7 @@
   padding: 0 12px var(--android-composer-bottom);
 }
 
-[data-android] .welcome:has([data-photo-suggestions]) {
+[data-android] .welcome[data-has-photo-suggestions='true'] {
   padding-bottom: 12.49px;
 }
 
@@ -101,6 +101,10 @@
       width: 32px;
     }
   }
+
+  [data-no-flex-gap][data-android] .greeting > * + * {
+    margin-top: 8px;
+  }
 }
 
 @media (max-height: 320px) {
@@ -128,6 +132,7 @@
     justify-content: flex-end;
     max-width: none;
     margin: 0;
+    padding: 0 16px 0;
     padding: 0 16px env(safe-area-inset-bottom);
   }
 
@@ -146,4 +151,8 @@
     color: var(--dsw-alias-label-tertiary);
     user-select: none;
   }
+}
+
+[data-no-flex-gap][data-android] .greeting > * + * {
+  margin-top: 13.8444px;
 }

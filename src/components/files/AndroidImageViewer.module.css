@@ -246,6 +246,30 @@
 
 @keyframes spin {
   to {
-    rotate: 360deg;
+    transform: rotate(360deg);
   }
+}
+
+[data-no-flex-gap] .previewControls > button + button {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap] .action > svg:not(:last-child) {
+  margin-right: 8px;
+}
+
+[data-no-flex-gap] .tools button > svg:not(:last-child) {
+  margin-right: 8px;
+}
+
+[data-no-flex-gap] .tools > * + * {
+  margin-left: 12px;
+}
+
+[data-no-flex-gap] .tools > .rotate {
+  margin-left: auto;
+}
+
+[data-no-flex-gap] .controls > .confirm {
+  margin-left: 12px;
 }

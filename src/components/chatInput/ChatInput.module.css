@@ -729,6 +729,58 @@
   color: #e5e5e5;
 }
 
+[data-no-flex-gap] .attachments > * + * {
+  margin-left: 10px;
+}
+
+[data-no-flex-gap] .functionRow > * + * {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap][data-android] .functionRow > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .functionRow > .right {
+  margin-left: auto;
+}
+
+[data-no-flex-gap] .toggles > * + * {
+  margin-left: 10px;
+}
+
+[data-no-flex-gap][data-android] .toggles > * + * {
+  margin-left: 7px;
+}
+
+[data-no-flex-gap] .toggle > * + * {
+  margin-left: 4px;
+}
+
+[data-no-flex-gap] .collapsedToggles .toggle > * + * {
+  margin-left: 0;
+}
+
+[data-no-flex-gap] .right > * + * {
+  margin-left: 4px;
+}
+
+[data-no-flex-gap][data-android] .right > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .quickSuggestionsList > * + * {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap] .quickSuggestionsList button > svg {
+  margin-right: 5px;
+}
+
+[data-no-flex-gap][data-android] .editBanner > * + * {
+  margin-left: 8px;
+}
+
 [data-android] .editClose {
   display: inline-flex;
   align-items: center;

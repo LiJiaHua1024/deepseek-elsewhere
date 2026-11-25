@@ -504,3 +504,23 @@
   font-size: 16px;
   line-height: 22px;
 }
+
+[data-no-flex-gap] .top > * + * {
+  margin-left: 8px;
+}
+
+[data-no-flex-gap] .collapsed > * + * {
+  margin-left: 16px;
+}
+
+[data-no-flex-gap] .collapsedGroup > * + * {
+  margin-left: 2px;
+}
+
+[data-no-flex-gap] .selectionActions button > svg {
+  margin-right: 6px;
+}
+
+[data-no-flex-gap] .search > * + * {
+  margin-left: 8px;
+}

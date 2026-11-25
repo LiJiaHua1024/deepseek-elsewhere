@@ -82,3 +82,11 @@
     }
   }
 }
+
+[data-no-flex-gap] .avatarField > * + * {
+  margin-left: 12px;
+}
+
+[data-no-flex-gap] .avatarActions > * + * {
+  margin-left: 8px;
+}

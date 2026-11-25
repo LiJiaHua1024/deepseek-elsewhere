@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { android } from '../../app/android.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useTranslate } from '../../i18n/index.js'
@@ -22,6 +22,7 @@ export const SessionView = memo(function SessionView({
 }) {
   const t = useTranslate()
   const isMobile = useIsMobile()
+  const [attachmentPanelOpen, setAttachmentPanelOpen] = useState(false)
   const title = session.title || t('untitledChat')
   return (
     <div className={styles.view}>
@@ -40,8 +41,12 @@ export const SessionView = memo(function SessionView({
         session={session}
         streaming={streaming}
         footer={
-          <div className={styles.inputContainer} data-side-shift={android ? 'center' : undefined}>
-            <ChatInput sessionId={session.id} />
+          <div
+            className={styles.inputContainer}
+            data-side-shift={android ? 'center' : undefined}
+            data-attachment-open={attachmentPanelOpen ? 'true' : undefined}
+          >
+            <ChatInput sessionId={session.id} onAttachmentPanelChange={setAttachmentPanelOpen} />
             <div className={styles.caveatSlot}>
               <div className={styles.caveat}>
                 {t(android ? 'androidContentCaveat' : 'contentCaveat')}

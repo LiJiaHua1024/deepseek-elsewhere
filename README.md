@@ -9,7 +9,7 @@
 </p>
 
 [![Release](https://img.shields.io/github/v/release/LiJiaHua1024/deepseek-elsewhere?style=flat-square&color=2563eb&label=Release)](https://github.com/LiJiaHua1024/deepseek-elsewhere/releases/latest)
-[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/LiJiaHua1024/deepseek-elsewhere)
+[![Platform](https://img.shields.io/badge/Platform-Android%209%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/LiJiaHua1024/deepseek-elsewhere)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue?style=flat-square)](LICENSE)
 
 <br />
@@ -26,7 +26,9 @@ Elsewhere 是一个面向日常与深度对话的纯粹 AI 聊天客户端，基
 
 ## 下载与安装
 
-前往 [GitHub Releases](https://github.com/LiJiaHua1024/deepseek-elsewhere/releases) 下载最新 APK 并安装至 Android 设备（支持 Android 10 / API 29 及以上）。
+前往 [GitHub Releases](https://github.com/LiJiaHua1024/deepseek-elsewhere/releases) 下载最新 APK 并安装至 Android 设备。
+
+> 当前源码构建的 APK 支持 Android 9（API 级别 28）及以上版本，前端兼容 WebView 66+。兼容测试覆盖 Android 10 的预装 WebView 74、升级后的 WebView 83，以及 Android 11 的预装 WebView 83。
 
 ## 使用步骤
 
@@ -40,7 +42,7 @@ Elsewhere 是一个面向日常与深度对话的纯粹 AI 聊天客户端，基
 
 项目采用 Android 原生容器承载高性能 Web 交互内核的架构：
 
-- **Android 原生层**：基于 Java 17 与 Android SDK 37（最低兼容 Android 10 / API 29），使用独立包名 `io.github.lijiahua1024.elsewhere`。封装 Keystore 加密存储、原生录音（`AudioRecord`）、系统相册快速预取、应用内更新与内置网页浏览器（`SourceBrowserActivity`）。
+- **Android 原生层**：基于 Java 17 与 Android SDK 37（最低兼容 Android 9 / API 28），使用独立包名 `io.github.lijiahua1024.elsewhere`。通过 WebView 加载本地构建产物，并封装 Keystore 加密存储、原生录音（`AudioRecord`）、系统相册快速预取、应用内更新与内置网页浏览器（`SourceBrowserActivity`）。
 - **Web 交互层**：React 18 + TypeScript + Zustand 状态管理，CSS Modules 样式体系，集成 KaTeX、Mermaid 与 Prism.js 排版渲染。
 - **构建系统**：Rspack 2 高速打包，与 Gradle `buildWeb` 任务联动。
 

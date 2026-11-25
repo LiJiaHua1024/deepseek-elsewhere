@@ -5,8 +5,8 @@ import { defineConfig } from '@rspack/cli'
 import { rspack, type Configuration } from '@rspack/core'
 
 const dev = process.env.NODE_ENV === 'development' || process.argv.includes('serve')
-// The Android 10 test image ships with WebView 74 before system component updates.
-const targets = ['chrome >= 74', 'edge >= 105', 'safari >= 16', 'firefox >= 110']
+// Android 9 stock WebView ships from Chrome 66+ and Android 10 ships with WebView 74+.
+const targets = ['chrome >= 66', 'edge >= 105', 'safari >= 16', 'firefox >= 110']
 const root = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8')

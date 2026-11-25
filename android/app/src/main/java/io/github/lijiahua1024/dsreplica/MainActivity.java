@@ -62,6 +62,7 @@ public final class MainActivity extends Activity {
     private static final int PHOTOS = 3;
     private static final int CAMERA = 4;
     private static final int EXPORT_HISTORY = 5;
+    private static final int WRITE_IMAGES = 6;
     private static final int NOTIFICATIONS = 7;
     private WebView webView;
     private FrameLayout frame;
@@ -82,6 +83,9 @@ public final class MainActivity extends Activity {
     private Uri capture;
     private RecentPhotos recentPhotos;
     private FileExport historyExport;
+    private ChatStorage chatStorage;
+    private final Object storageOwner = new Object();
+    private ShadowStore shadow;
     private ImageSave imageSave;
     private NativeRecorder recorder;
     private AppUpdater updater;
@@ -109,7 +113,9 @@ public final class MainActivity extends Activity {
         profilePreferences = getSharedPreferences("account_profile", MODE_PRIVATE);
         recentPhotos = new RecentPhotos(getContentResolver());
         historyExport = new FileExport(getContentResolver());
-        imageSave = new ImageSave(getContentResolver());
+        chatStorage = ChatStorage.get(this);
+        shadow = new ShadowStore(this);
+        imageSave = new ImageSave(this);
         recorder = new NativeRecorder();
         frame = new FrameLayout(this);
         webView = new WebView(this);
@@ -128,8 +134,9 @@ public final class MainActivity extends Activity {
                 webView.evaluateJavascript("if (document.documentElement) { const root = document.documentElement;"
                     + "root.style.setProperty('--android-status-inset', '" + top + "px');"
                     + "root.style.setProperty('--android-button-nav-inset', '" + bottom + "px');"
-                    + "root.toggleAttribute('data-button-navigation', " + (bottom > 0) + ");"
-                    + "root.toggleAttribute('data-keyboard', " + ime + "); }", null);
+                    + (bottom > 0 ? "root.setAttribute('data-button-navigation', '');" : "root.removeAttribute('data-button-navigation');")
+                    + (ime ? "root.setAttribute('data-keyboard', '');" : "root.removeAttribute('data-keyboard');")
+                    + " }", null);
             }
         });
         setContentView(frame);
@@ -204,6 +211,24 @@ public final class MainActivity extends Activity {
             && url.getPort() == -1;
     }
 
+    private static String assetMimeType(String extension) {
+        String lower = extension.toLowerCase(java.util.Locale.ROOT);
+        return switch (lower) {
+            case "html" -> "text/html";
+            case "js" -> "text/javascript";
+            case "css" -> "text/css";
+            case "svg" -> "image/svg+xml";
+            case "woff2" -> "font/woff2";
+            case "woff" -> "font/woff";
+            case "ttf" -> "font/ttf";
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "webp" -> "image/webp";
+            case "json" -> "application/json";
+            default -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(lower);
+        };
+    }
+
     private final class AppPage extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -247,6 +272,15 @@ public final class MainActivity extends Activity {
             Uri url = request.getUrl();
             if (!isBundled(url)) return null;
             String path = url.getPath();
+            if ("GET".equals(request.getMethod()) && path != null && path.startsWith("/chat-attachment/")) {
+                try {
+                    return new WebResourceResponse("application/octet-stream", null, 200, "OK",
+                        Map.of("Cache-Control", "no-store", "X-Content-Type-Options", "nosniff"),
+                        chatStorage.openAttachment(path.substring("/chat-attachment/".length())));
+                } catch (IOException ignored) {
+                    // A missing native file returns the bundled origin's 404.
+                }
+            }
             if ("/recording.wav".equals(path)) {
                 WebResourceResponse audio = recorder.takeWav();
                 if (audio != null) return audio;
@@ -264,10 +298,9 @@ public final class MainActivity extends Activity {
                     && !path.contains("/../"))) {
                 String name = path.substring(1);
                 String extension = name.substring(name.lastIndexOf('.') + 1);
-                String type = "js".equals(extension) ? "text/javascript"
-                    : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+                String type = assetMimeType(extension);
                 Map<String, String> headers = Map.of("Content-Security-Policy",
-                    "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; "
+                    "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; child-src 'self'; "
                     + "style-src 'self' 'unsafe-inline'; "
                     + "img-src 'self' https: data: blob:; font-src 'self' data:; "
                     + "media-src 'self' blob:; connect-src 'self' https://api.deepseek.com; "
@@ -403,7 +436,7 @@ public final class MainActivity extends Activity {
                         SelectedPhoto.writePng(getContentResolver(), uri, output);
                     }
                     files[index] = decoded;
-                } catch (IOException | SecurityException ignored) {
+                } catch (IOException | RuntimeException ignored) {
                     // The original document can still be handled by normal attachment validation.
                 }
             }
@@ -426,6 +459,8 @@ public final class MainActivity extends Activity {
             } else {
                 completeFileChooser(null);
             }
+        } else if (code == WRITE_IMAGES) {
+            reportImageSavePermission(granted(Manifest.permission.WRITE_EXTERNAL_STORAGE));
         }
     }
 
@@ -523,6 +558,7 @@ public final class MainActivity extends Activity {
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         recorder.finish(false);
         historyExport.close();
+        chatStorage.disconnect(storageOwner);
         imageSave.finish(false);
         frame.removeView(webView);
         webView.destroy();
@@ -532,6 +568,12 @@ public final class MainActivity extends Activity {
     private void reportExport(String state) {
         webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('android-export', "
             + "{detail: '" + state + "'}))", null);
+    }
+
+    private void reportImageSavePermission(boolean granted) {
+        if (isDestroyed() || webView == null) return;
+        webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('android-image-save-permission', "
+            + "{detail: '" + (granted ? "granted" : "denied") + "'}))", null);
     }
 
     private void startRecording() {
@@ -816,6 +858,35 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public boolean finishHistoryExport() { return historyExport.close(); }
 
+        // 聊天数据的原生文件影子镜像：WebView IndexedDB 被系统清空时用于恢复。
+        @JavascriptInterface
+        public String chatStorage(String method, String json) {
+            return chatStorage.request(storageOwner, method, json);
+        }
+
+        @JavascriptInterface
+        public String shadowList(String dir) { return shadow.list(dir); }
+
+        @JavascriptInterface
+        public String shadowReadChunk(String path, long offset) {
+            return shadow.readChunk(path, offset);
+        }
+
+        @JavascriptInterface
+        public boolean shadowClearAll() { return shadow.clearAll(); }
+
+        @JavascriptInterface
+        public void requestImageSavePermission() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                        || granted(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    reportImageSavePermission(true);
+                } else {
+                    requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_IMAGES);
+                }
+            });
+        }
+
         @JavascriptInterface
         public boolean beginImageSave(String name, String mime) { return imageSave.begin(name, mime); }
 
@@ -854,6 +925,7 @@ public final class MainActivity extends Activity {
             float endBottom,
             boolean active
         ) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
             runOnUiThread(() -> {
                 if (webView == null) return;
                 if (!active) {

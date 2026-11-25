@@ -12,7 +12,11 @@ void main() {
 `
 
 const FRAGMENT_SHADER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 uniform vec4 focusColor;
 uniform vec4 cancelColor;
@@ -247,15 +251,20 @@ export type VoiceMaskRenderer = {
 }
 
 export const createVoiceMaskRenderer = (canvas: HTMLCanvasElement): VoiceMaskRenderer | null => {
-  const gl = canvas.getContext('webgl', {
-    alpha: true,
-    premultipliedAlpha: true,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    preserveDrawingBuffer: false,
-    powerPreference: 'low-power',
-  })
+  let gl: WebGLRenderingContext | null = null
+  try {
+    gl = canvas.getContext('webgl', {
+      alpha: true,
+      premultipliedAlpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      preserveDrawingBuffer: false,
+      powerPreference: 'low-power',
+    })
+  } catch {
+    return null
+  }
   if (!gl) {
     return null
   }
@@ -364,7 +373,10 @@ export const createVoiceMaskRenderer = (canvas: HTMLCanvasElement): VoiceMaskRen
       return false
     }
     const dt = Number.isFinite(frame.dt) ? Math.max(0, Math.min(0.1, frame.dt)) : 0
-    const rawLevel = Math.max(0, Math.min(1, Number.isFinite(frame.audioLevel) ? frame.audioLevel : 0))
+    const rawLevel = Math.max(
+      0,
+      Math.min(1, Number.isFinite(frame.audioLevel) ? frame.audioLevel : 0)
+    )
     const dpr = Math.max(1, frame.dpr)
     const resW = Math.max(1, frame.fullWidth * dpr)
     const resH = Math.max(1, frame.fullHeight * dpr)
@@ -390,7 +402,8 @@ export const createVoiceMaskRenderer = (canvas: HTMLCanvasElement): VoiceMaskRen
       glow = 0
     } else {
       entranceSpring = stepCriticallyDampedSpring(entranceSpring, 1, 140, dt)
-      smoothedAudio += (rawLevel - smoothedAudio) * smoothFactor(dt, rawLevel > smoothedAudio ? 24 : 8)
+      smoothedAudio +=
+        (rawLevel - smoothedAudio) * smoothFactor(dt, rawLevel > smoothedAudio ? 24 : 8)
       breathSpring = stepCriticallyDampedSpring(breathSpring, rawLevel, 90, dt)
       if (breathSpring.value < 0) {
         breathSpring = { value: 0, velocity: Math.max(0, breathSpring.velocity) }

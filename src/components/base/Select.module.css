@@ -98,3 +98,7 @@
     background: var(--dsw-alias-interactive-bg-hover);
   }
 }
+
+[data-no-flex-gap] .option > * + * {
+  margin-left: 8px;
+}

@@ -228,3 +228,7 @@ body[data-ds-dark-theme] .backdrop {
     transform: translate(3%, -3%) scale(1.09);
   }
 }
+
+[data-no-flex-gap] .wave > * + * {
+  margin-left: 4px;
+}

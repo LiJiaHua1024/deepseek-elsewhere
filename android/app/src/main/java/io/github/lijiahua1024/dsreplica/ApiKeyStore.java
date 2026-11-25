@@ -40,7 +40,7 @@ final class ApiKeyStore {
             cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, bytes, 0, IV_LENGTH));
             return new String(cipher.doFinal(bytes, IV_LENGTH, bytes.length - IV_LENGTH),
                 StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException | IllegalArgumentException | java.io.IOException ignored) {
+        } catch (GeneralSecurityException | java.io.IOException | RuntimeException ignored) {
             return null;
         }
     }
@@ -58,7 +58,7 @@ final class ApiKeyStore {
             System.arraycopy(encrypted, 0, bytes, iv.length, encrypted.length);
             return preferences.edit().putString(preference, Base64.encodeToString(bytes, Base64.NO_WRAP))
                 .commit();
-        } catch (GeneralSecurityException | java.io.IOException ignored) {
+        } catch (GeneralSecurityException | java.io.IOException | RuntimeException ignored) {
             return false;
         }
     }

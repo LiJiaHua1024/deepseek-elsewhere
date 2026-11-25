@@ -172,7 +172,7 @@ record UpdateRelease(String version, URL url, long size, String digest) {
     static PackageInfo installed(Context context) {
         try {
             return context.getPackageManager().getPackageInfo(context.getPackageName(),
-                PackageManager.GET_SIGNING_CERTIFICATES);
+                signingFlags());
         } catch (PackageManager.NameNotFoundException impossible) {
             throw new IllegalStateException(impossible);
         }
@@ -181,26 +181,40 @@ record UpdateRelease(String version, URL url, long size, String digest) {
     static String verifyApk(Context context, PackageInfo installed, File file, String version)
         throws InvalidApk {
         PackageInfo apk = context.getPackageManager().getPackageArchiveInfo(file.getAbsolutePath(),
-            PackageManager.GET_SIGNING_CERTIFICATES);
+            signingFlags());
         if (apk == null || !installed.packageName.equals(apk.packageName) || apk.versionName == null
             || (version != null && !version.equals(apk.versionName))
             || apk.getLongVersionCode() <= installed.getLongVersionCode()
-            || apk.applicationInfo == null || apk.applicationInfo.minSdkVersion > Build.VERSION.SDK_INT
-            || apk.signingInfo == null || installed.signingInfo == null) {
+            || apk.applicationInfo == null || apk.applicationInfo.minSdkVersion > Build.VERSION.SDK_INT) {
             throw new InvalidApk();
         }
-        Signature[] existing = installed.signingInfo.getApkContentsSigners();
-        Signature[] incoming = apk.signingInfo.getApkContentsSigners();
+        Signature[] existing = signers(installed);
+        Signature[] incoming = signers(apk);
         if (existing == null || existing.length == 0 || incoming == null || incoming.length == 0) {
             throw new InvalidApk();
         }
         boolean sameSigners = new HashSet<>(Arrays.asList(existing))
             .equals(new HashSet<>(Arrays.asList(incoming)));
-        Signature[] history = apk.signingInfo.getSigningCertificateHistory();
+        Signature[] history = apk.signingInfo != null ? apk.signingInfo.getSigningCertificateHistory() : null;
         boolean rotated = existing.length == 1 && incoming.length == 1 && history != null
             && Arrays.asList(history).contains(existing[0]);
         if (!sameSigners && !rotated) throw new InvalidApk();
         return apk.versionName;
+    }
+
+    @SuppressWarnings("deprecation") // Android 9-10 require GET_SIGNATURES for archive signing info.
+    private static int signingFlags() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+            ? PackageManager.GET_SIGNING_CERTIFICATES
+            : PackageManager.GET_SIGNING_CERTIFICATES | PackageManager.GET_SIGNATURES;
+    }
+
+    @SuppressWarnings("deprecation") // Falls back to PackageInfo.signatures when signingInfo is null on API 28-29.
+    private static Signature[] signers(PackageInfo info) {
+        if (info.signingInfo != null) {
+            return info.signingInfo.getApkContentsSigners();
+        }
+        return info.signatures;
     }
 
     static final class InvalidApk extends Exception {}

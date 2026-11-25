@@ -210,6 +210,14 @@
   text-align: center;
 }
 
+[data-no-flex-gap] .saveError > * + * {
+  margin-left: 12px;
+}
+
+[data-no-flex-gap] .loadingState > * + * {
+  margin-top: 16px;
+}
+
 @media not all and (min-width: 768px) {
   .frame {
     position: fixed;

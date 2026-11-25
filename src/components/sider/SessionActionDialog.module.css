@@ -115,3 +115,7 @@
   font: inherit;
   font-size: 16px;
 }
+
+[data-no-flex-gap] .stackedActions > * + * {
+  margin-top: 8px;
+}

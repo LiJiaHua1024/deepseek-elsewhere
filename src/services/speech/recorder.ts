@@ -104,7 +104,18 @@ export const startRecording = async (onLimit: () => void): Promise<Recording> =>
   }
 
   try {
-    context = new AudioContext({ sampleRate: SAMPLE_RATE })
+    const AudioCtx =
+      typeof AudioContext !== 'undefined'
+        ? AudioContext
+        : (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioCtx) {
+      throw new Error('AudioContext is not supported')
+    }
+    try {
+      context = new AudioCtx({ sampleRate: SAMPLE_RATE })
+    } catch {
+      context = new AudioCtx()
+    }
     source = context.createMediaStreamSource(stream)
     processor = context.createScriptProcessor(BUFFER_SIZE, 1, 1)
     // 频谱分析用：串在录音链路中间（原样透传），WebKit 不会处理未连到输出的分析节点

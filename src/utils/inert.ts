@@ -4,7 +4,11 @@ export const setInert = (element: HTMLElement | null, inert: boolean) => {
     return
   }
   element.inert = inert
-  element.toggleAttribute('inert', inert)
+  if (inert) {
+    element.setAttribute('inert', '')
+  } else {
+    element.removeAttribute('inert')
+  }
   if (
     inert &&
     element.contains(document.activeElement) &&

@@ -23,35 +23,50 @@ const secondPhase = (property: Property, from: Value, to: Value, easing: string)
   { [property]: to },
 ]
 
-const waitForAnimation = (animation: Animation): Promise<boolean> => {
-  // Animation.finished landed in Chrome 84; fall back to Web Animations events on older WebView.
-  if (animation.finished) {
-    return animation.finished.then(
-      () => true,
-      () => false
-    )
-  }
+const waitForAnimation = (
+  animation: Animation,
+  registerCleanup: (cleanup: (cancelled: boolean) => void) => void
+): Promise<boolean> => {
   if (animation.playState === 'finished') {
     return Promise.resolve(true)
   }
   if (animation.playState === 'idle') {
     return Promise.resolve(false)
   }
+  const fallbackMs = Math.ceil(duration * 2)
   return new Promise<boolean>((resolve) => {
+    let settled = false
+    const timer = window.setTimeout(() => finish(true), fallbackMs)
     const cleanup = () => {
+      window.clearTimeout(timer)
       animation.removeEventListener('finish', onFinish)
       animation.removeEventListener('cancel', onCancel)
     }
-    const onFinish = () => {
+    const finish = (result: boolean) => {
+      if (settled) {
+        return
+      }
+      settled = true
       cleanup()
-      resolve(true)
+      resolve(result)
     }
-    const onCancel = () => {
-      cleanup()
-      resolve(false)
+    const onFinish = () => finish(true)
+    const onCancel = () => finish(false)
+
+    registerCleanup((cancelled) => {
+      if (cancelled) {
+        finish(false)
+      } else {
+        cleanup()
+      }
+    })
+    // Animation.finished landed in Chrome 84; fall back to Web Animations events and a timeout on older WebView.
+    if (animation.finished) {
+      void animation.finished.then(onFinish, onCancel)
+    } else {
+      animation.addEventListener('finish', onFinish)
+      animation.addEventListener('cancel', onCancel)
     }
-    animation.addEventListener('finish', onFinish)
-    animation.addEventListener('cancel', onCancel)
   })
 }
 
@@ -65,11 +80,16 @@ export const createSettingsPageMotion = (
   const right = `translateX(${distance}px)`
   const left = `translateX(${-distance}px)`
   const rest = 'translateX(0)'
-  const background = 'var(--settings-bg)'
   let animations: Animation[] = []
   let direction: Direction | undefined
+  let cleanups: Array<(cancelled: boolean) => void> = []
 
   const cancel = () => {
+    const activeCleanups = cleanups
+    cleanups = []
+    for (const cleanup of activeCleanups) {
+      cleanup(true)
+    }
     for (const animation of animations) {
       animation.cancel()
     }
@@ -82,39 +102,50 @@ export const createSettingsPageMotion = (
       return
     }
     cancel()
+    if (typeof page.animate !== 'function' || typeof content.animate !== 'function') {
+      return
+    }
     direction = next
     const returning = next === 'back'
-    animations = [
-      page.animate(
-        returning
-          ? secondPhase('backgroundColor', background, 'transparent', fadeIn)
-          : firstPhase('backgroundColor', 'transparent', background, fadeOut),
-        timing
-      ),
-      content.animate(
-        returning ? firstPhase('opacity', 1, 0, fadeOut) : secondPhase('opacity', 0, 1, fadeIn),
-        timing
-      ),
-      content.animate(
-        returning
-          ? firstPhase('transform', rest, right, slideOut)
-          : secondPhase('transform', right, rest, slideIn),
-        timing
-      ),
-    ]
-    if (previous) {
-      animations.push(
-        previous.animate(
+    const computedBackground = getComputedStyle(page).backgroundColor
+    const background =
+      computedBackground && computedBackground !== 'transparent' ? computedBackground : '#f8f8f8'
+    try {
+      const created = [
+        page.animate(
           returning
-            ? secondPhase('transform', left, rest, slideIn)
-            : firstPhase('transform', rest, left, slideOut),
+            ? secondPhase('backgroundColor', background, 'transparent', fadeIn)
+            : firstPhase('backgroundColor', 'transparent', background, fadeOut),
           timing
+        ),
+        content.animate(
+          returning ? firstPhase('opacity', 1, 0, fadeOut) : secondPhase('opacity', 0, 1, fadeIn),
+          timing
+        ),
+        content.animate(
+          returning
+            ? firstPhase('transform', rest, right, slideOut)
+            : secondPhase('transform', right, rest, slideIn),
+          timing
+        ),
+      ]
+      if (previous && typeof previous.animate === 'function') {
+        created.push(
+          previous.animate(
+            returning
+              ? secondPhase('transform', left, rest, slideIn)
+              : firstPhase('transform', rest, left, slideOut),
+            timing
+          )
         )
-      )
-    }
-    for (const animation of animations) {
-      animation.pause()
-      animation.currentTime = 0
+      }
+      for (const animation of created) {
+        animation.pause()
+        animation.currentTime = 0
+      }
+      animations = created
+    } catch {
+      cancel()
     }
   }
 
@@ -128,14 +159,20 @@ export const createSettingsPageMotion = (
     },
     play(next: Direction) {
       prepare(next)
-      if (animations[0].currentTime === timeline) {
+      const target = animations[1] ?? animations[0]
+      if (!target) {
+        return Promise.resolve(true)
+      }
+      if (target.currentTime === timeline) {
         return Promise.resolve(true)
       }
       for (const animation of animations) {
         animation.playbackRate = timeline / duration
         animation.play()
       }
-      return waitForAnimation(animations[0])
+      return waitForAnimation(target, (cleanup) => {
+        cleanups.push(cleanup)
+      })
     },
     cancel,
   }

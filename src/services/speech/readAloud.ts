@@ -75,6 +75,21 @@ export const describeReadAloudError = (error: unknown): TranslationMessage | str
   }
 }
 
+const createAudioContext = (sampleRate: number): AudioContext => {
+  const AudioCtx =
+    typeof AudioContext !== 'undefined'
+      ? AudioContext
+      : (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!AudioCtx) {
+    throw new Error('AudioContext is not supported')
+  }
+  try {
+    return new AudioCtx({ sampleRate })
+  } catch {
+    return new AudioCtx()
+  }
+}
+
 /**
  * 开始朗读一条回复的正文；同一条正在朗读时调用等于停止。
  * 必须在点击事件中同步调用：AudioContext 需要用户手势才能出声。
@@ -90,7 +105,10 @@ export const toggleReadAloud = (
     return
   }
   const controller = new AbortController()
-  const context = new AudioContext({ sampleRate: TTS_SAMPLE_RATE })
+  const context = createAudioContext(TTS_SAMPLE_RATE)
+  if (context.state === 'suspended') {
+    void context.resume().catch(() => {})
+  }
   current = { controller, context }
   useReadAloud.setState({ messageId, status: 'loading' })
   // 音色在开始朗读时读取，设置中切换后下一次朗读生效

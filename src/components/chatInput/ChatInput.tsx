@@ -79,13 +79,34 @@ const DesktopToolsIcon16 = () => (
 
 const useVoiceMode = create<{ enabled: boolean }>(() => ({ enabled: false }))
 
+type ChatInputProps = {
+  sessionId: string | null
+  onAttachmentPanelChange?: (open: boolean) => void
+  onPhotoSuggestionsChange?: (visible: boolean) => void
+}
+
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
-export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: string | null }) {
+export const ChatInput = memo(function ChatInput({
+  sessionId,
+  onAttachmentPanelChange,
+  onPhotoSuggestionsChange,
+}: ChatInputProps) {
   // 切换目标时释放录音、转写和 DOM 状态；文字与附件由草稿服务保留。
-  return <Input key={sessionId === null ? 'new' : `session:${sessionId}`} sessionId={sessionId} />
+  return (
+    <Input
+      key={sessionId === null ? 'new' : `session:${sessionId}`}
+      sessionId={sessionId}
+      onAttachmentPanelChange={onAttachmentPanelChange}
+      onPhotoSuggestionsChange={onPhotoSuggestionsChange}
+    />
+  )
 })
 
-const Input = ({ sessionId }: { sessionId: string | null }) => {
+const Input = ({
+  sessionId,
+  onAttachmentPanelChange,
+  onPhotoSuggestionsChange,
+}: ChatInputProps) => {
   const t = useTranslate()
   const zhTools = useIsZh()
   const activeToolsCount = useActiveToolsCount()
@@ -454,6 +475,18 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }
 
   const photoSuggestions = !!android && !text.trim() && attachments.some((item) => item.isImage)
+  const attachmentPanelOpen = Boolean(android && showAttachments)
+
+  useEffect(() => {
+    onAttachmentPanelChange?.(attachmentPanelOpen)
+    return () => onAttachmentPanelChange?.(false)
+  }, [attachmentPanelOpen, onAttachmentPanelChange])
+
+  useEffect(() => {
+    onPhotoSuggestionsChange?.(photoSuggestions)
+    return () => onPhotoSuggestionsChange?.(false)
+  }, [onPhotoSuggestionsChange, photoSuggestions])
+
   const viewerBlob = preview ? (preview.file ?? preview.blob ?? undefined) : undefined
 
   return (

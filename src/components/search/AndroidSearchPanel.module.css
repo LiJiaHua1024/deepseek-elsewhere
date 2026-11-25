@@ -301,3 +301,11 @@ body[data-ds-dark-theme] .sheet {
     max-height: 1080px;
   }
 }
+
+[data-no-flex-gap] .meta > * + * {
+  margin-left: 10.36px;
+}
+
+[data-no-flex-gap] .meta > .number {
+  margin-left: auto;
+}

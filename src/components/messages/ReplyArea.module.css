@@ -470,3 +470,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+[data-no-flex-gap] .toolBody {
+  margin-bottom: -6px;
+}
+
+[data-no-flex-gap] .toolBody > * {
+  margin-bottom: 6px;
+}

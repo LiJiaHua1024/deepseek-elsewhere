@@ -278,6 +278,46 @@ try {
         && getComputedStyle(main).borderTopLeftRadius === '36px';
     })()`)
   )
+  await evaluate(
+    'document.querySelector(\'button[aria-label*="设置"], button[aria-label*="Settings"]\').click()'
+  )
+  await until('Opening Settings from the sidebar should render visible Settings content', () =>
+    evaluate(`(() => {
+      const page = document.querySelector('[data-settings-page="root"]');
+      const content = page?.firstElementChild;
+      if (!page || !content) return false;
+      const rect = content.getBoundingClientRect();
+      const rows = Array.from(page.querySelectorAll('button')).filter((el) => !el.ariaLabel);
+      return rect.width > 100 && rect.height > 100 && getComputedStyle(content).opacity === '1'
+        && rows.some((row) => row.getBoundingClientRect().height > 0);
+    })()`)
+  )
+  await evaluate(`(() => {
+    const row = Array.from(document.querySelectorAll('[data-settings-page="root"] button'))
+      .find((el) => /账户|Account/.test(el.textContent ?? ''));
+    if (row) row.click();
+  })()`)
+  await until('Navigating to a Settings subpage should render visible subpage content', () =>
+    evaluate(`(() => {
+      const page = document.querySelector('[data-settings-page="account"]');
+      const content = page?.firstElementChild;
+      if (!page || !content) return false;
+      const rect = content.getBoundingClientRect();
+      return rect.width > 100 && rect.height > 100 && getComputedStyle(content).opacity === '1';
+    })()`)
+  )
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+  await until('Android back from subpage should return to Settings root', () =>
+    evaluate(`(() => {
+      const root = document.querySelector('[data-settings-page="root"]')?.firstElementChild;
+      return !document.querySelector('[data-settings-page="account"]')
+        && Boolean(root) && getComputedStyle(root).opacity === '1';
+    })()`)
+  )
+  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+  await until('Android back from Settings root should close Settings', () =>
+    evaluate('!document.querySelector("[data-settings-page]")')
+  )
   adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
   await until('Android back should close the sidebar and restore the conversation', async () => {
     const drawerClosed = await evaluate(`(() => {

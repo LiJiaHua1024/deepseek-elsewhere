@@ -121,7 +121,7 @@
   display: none;
 }
 
-[data-android] .inputContainer:has([data-attachment-panel][data-open='true']) .caveat {
+[data-android] .inputContainer[data-attachment-open='true'] .caveat {
   visibility: hidden;
 }
 

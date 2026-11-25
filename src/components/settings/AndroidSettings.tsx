@@ -12,6 +12,7 @@ import {
   BackupError,
   clearHistory,
   exportHistory,
+  formatExportWarning,
   formatImportResult,
   importHistory,
   type ImportMode,
@@ -257,6 +258,23 @@ const BackgroundIcon = () => (
   >
     <path d="M15 12.75H3c1.05-1.15 1.5-2.55 1.5-4.6V7a4.5 4.5 0 0 1 9 0v1.15c0 2.05.45 3.45 1.5 4.6Z" />
     <path d="M7.15 15.1a2 2 0 0 0 3.7 0" />
+  </svg>
+)
+
+const FontSizeIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M1.4 14.25 3.8 8.25l2.4 6M2.2 12.25h3.2" />
+    <path d="M8.6 14.25 12.6 3.75l4 10.5M9.95 10.75h5.3" />
   </svg>
 )
 
@@ -528,7 +546,11 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
       )
     }
     window.addEventListener('android-update', onUpdate)
-    setUpdate(JSON.parse(android.updateStatus()) as UpdateStatus)
+    try {
+      setUpdate(JSON.parse(android.updateStatus()) as UpdateStatus)
+    } catch {
+      // Ignore malformed native update snapshots so Settings stays usable.
+    }
     return () => window.removeEventListener('android-update', onUpdate)
   }, [])
 
@@ -889,11 +911,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 icon={<IconLightOutline16 />}
                 onClick={() => setPopup('theme')}
               />
-              <Row
-                label={labels.font}
-                icon={<span className={styles.fontIcon}>ᴀA</span>}
-                onClick={() => openPage('font')}
-              />
+              <Row label={labels.font} icon={<FontSizeIcon />} onClick={() => openPage('font')} />
               <Row
                 label={labels.personalization}
                 icon={<PersonalizationIcon />}
@@ -1022,9 +1040,7 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 href="https://api-docs.deepseek.com/zh-cn/"
               />
             </Group>
-            <p className={styles.legal}>
-              {t('appName')}
-            </p>
+            <p className={styles.legal}>{t('appName')}</p>
           </>
         ) : null}
         {screen === 'models' ? (
@@ -1157,6 +1173,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                   void runExportAction(async () => {
                     setExportSavedName(null)
                     const exported = await exportHistory()
+                    const warning = formatExportWarning(exported)
+                    if (warning) {
+                      showToast(warning)
+                    }
                     if (android) {
                       if (await saveAndroidHistory(exported.name, exported.blob)) {
                         setExportSavedName(exported.name)
@@ -1369,7 +1389,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                 openAndroidPage(`${chinesePoliciesUrl}/collected-personal-information.html`)
               }
             />
-            <Row label={tr('应用权限', 'App Permissions')} onClick={() => android?.openAppPermissions()} />
+            <Row
+              label={tr('应用权限', 'App Permissions')}
+              onClick={() => android?.openAppPermissions()}
+            />
           </Group>
         ) : null}
       </div>

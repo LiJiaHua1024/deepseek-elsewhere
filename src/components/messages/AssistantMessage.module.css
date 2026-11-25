@@ -161,6 +161,7 @@
 
   > span {
     min-width: 0;
+    overflow-wrap: break-word;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
@@ -268,4 +269,40 @@
 
 [data-android] body[data-ds-dark-theme] .summary {
   color: #e5e5e5;
+}
+
+[data-no-flex-gap] .waiting > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .notice > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .bottom > * + * {
+  margin-left: 10px;
+}
+
+[data-no-flex-gap] .actions > * + * {
+  margin-left: 10px;
+}
+
+[data-no-flex-gap][data-android] .actions > * + * {
+  margin-left: 6px;
+}
+
+[data-no-flex-gap] .bottom > .regenerate {
+  margin-left: auto;
+}
+
+[data-no-flex-gap] .actions > .regenerate {
+  margin-left: auto;
+}
+
+[data-no-flex-gap] .bottom > .continueButton {
+  margin-left: auto;
+}
+
+[data-no-flex-gap] .actions > .continueButton {
+  margin-left: auto;
 }
