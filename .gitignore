@@ -18,3 +18,5 @@ android/**/build/
 /android/app/release.jks
 /android/keystore.properties
 *.apk
+
+artifacts/
