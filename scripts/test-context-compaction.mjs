@@ -542,7 +542,7 @@ for (const [format, path] of [
       const body = JSON.parse(init.body)
       assert.equal(body.model, 'deepseek-flash')
       assert.equal(body.stream, true)
-      assert.equal(body.safety_check.level, 'high')
+      assert.equal(body.safety_check.level, 'low')
       assert.equal(
         body.tools.some(({ type }) => type === 'deepseek_read_url'),
         true

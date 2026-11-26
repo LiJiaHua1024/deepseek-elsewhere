@@ -218,7 +218,7 @@ export type CreateMessageRequest = {
   reasoningEffort?: ReasoningEffort
   tools?: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
   clientTools?: ClientToolSchema[]
-  safety_check?: { level: 'high' }
+  safety_check?: { level: 'low' }
   title?: { enabled: boolean }
 }
 

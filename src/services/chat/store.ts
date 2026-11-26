@@ -142,8 +142,8 @@ const SIMPLE_ARITHMETIC =
   /^\s*\d+(?:\.\d+)?(?:\s*[+\-*/×÷]\s*\d+(?:\.\d+)?)+(?:\s*(?:=|等于|\?|？))?\s*$/
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
-/** 首次请求开启高级内容审核。 */
-const SAFETY_CHECK = { level: 'high' } as const
+/** 首次请求开启低级内容审核。 */
+const SAFETY_CHECK = { level: 'low' } as const
 /** 同一轮请求因 file_id 失效而重发的最多次数（不含首次请求） */
 const FILE_RETRY_LIMIT = 2
 /** 退避基数，第 n 次重试等待 2^n 倍；连续失败达到上限就放弃，把原始报错展示出来 */
