@@ -6,6 +6,8 @@ export type SettingsSection =
   | 'models'
   | 'prompts'
   | 'memory'
+  | 'voice'
+  | 'voiceAsr'
   | 'data'
   | 'account'
   | 'advanced'

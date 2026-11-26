@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +55,7 @@ final class NativeHttpTransport {
                 ? Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, payload.optInt("timeoutMs", DEFAULT_TIMEOUT_MS)))
                 : DEFAULT_TIMEOUT_MS;
             String body = payload.isNull("body") ? null : payload.optString("body", null);
+            byte[] bodyBytes = body != null ? body.getBytes(StandardCharsets.UTF_8) : null;
             List<HeaderEntry> headers = parseHeaders(payload.optJSONObject("headers"));
 
             Call call = new Call();
@@ -61,11 +63,100 @@ final class NativeHttpTransport {
             if (previous != null) {
                 return false;
             }
-            workers.execute(() -> run(requestId, call, initialUri, method, headers, body, timeoutMs, emit));
+            workers.execute(() -> run(requestId, call, initialUri, method, headers, bodyBytes, timeoutMs, emit));
             return true;
         } catch (JSONException | IllegalArgumentException ignored) {
             return false;
         }
+    }
+
+    boolean beginMultipartAudio(String requestId, String payloadJson, byte[] wavBytes, Consumer<String> emit) {
+        if (requestId == null || requestId.isEmpty() || payloadJson == null || wavBytes == null
+                || wavBytes.length == 0 || emit == null) {
+            return false;
+        }
+        try {
+            JSONObject payload = new JSONObject(payloadJson);
+            URI initialUri = parseWebUri(payload.optString("url", ""));
+            if (initialUri == null) {
+                return false;
+            }
+            int timeoutMs = payload.has("timeoutMs")
+                ? Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, payload.optInt("timeoutMs", 60_000)))
+                : 60_000;
+            String fileField = payload.optString("fileField", "file");
+            if (fileField.isEmpty()) fileField = "file";
+            String fileName = payload.optString("fileName", "recording.wav");
+            if (fileName.isEmpty()) fileName = "recording.wav";
+            String fileMime = payload.optString("fileMime", "audio/wav");
+            if (fileMime.isEmpty()) fileMime = "audio/wav";
+
+            String boundary = "----ElsewhereBoundary" + UUID.randomUUID().toString().replace("-", "");
+            List<HeaderEntry> headers = parseHeaders(payload.optJSONObject("headers"));
+            headers.removeIf(entry -> "content-type".equalsIgnoreCase(entry.name));
+            headers.add(new HeaderEntry("Content-Type", "multipart/form-data; boundary=" + boundary));
+
+            ByteArrayOutputStream multipart = new ByteArrayOutputStream();
+            JSONObject fields = payload.optJSONObject("fields");
+            if (fields != null) {
+                Iterator<String> keys = fields.keys();
+                while (keys.hasNext()) {
+                    String name = keys.next();
+                    if (name == null || name.isEmpty() || fields.isNull(name)) continue;
+                    String value = fields.optString(name, "");
+                    writeMultipartTextField(multipart, boundary, name, value);
+                }
+            }
+            writeMultipartFileField(multipart, boundary, fileField, fileName, fileMime, wavBytes);
+            multipart.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.US_ASCII));
+            byte[] bodyBytes = multipart.toByteArray();
+
+            Call call = new Call();
+            Call previous = activeCalls.putIfAbsent(requestId, call);
+            if (previous != null) {
+                return false;
+            }
+            workers.execute(() -> run(requestId, call, initialUri, "POST", headers, bodyBytes, timeoutMs, emit));
+            return true;
+        } catch (JSONException | IOException | IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static void writeMultipartTextField(
+        ByteArrayOutputStream out,
+        String boundary,
+        String name,
+        String value
+    ) throws IOException {
+        String safeName = sanitizeQuotedHeaderValue(name);
+        out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(("Content-Disposition: form-data; name=\"" + safeName + "\"\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(value.getBytes(StandardCharsets.UTF_8));
+        out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private static void writeMultipartFileField(
+        ByteArrayOutputStream out,
+        String boundary,
+        String fieldName,
+        String fileName,
+        String mimeType,
+        byte[] bytes
+    ) throws IOException {
+        String safeField = sanitizeQuotedHeaderValue(fieldName);
+        String safeFile = sanitizeQuotedHeaderValue(fileName);
+        String safeMime = mimeType.replace("\r", "").replace("\n", "");
+        out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(("Content-Disposition: form-data; name=\"" + safeField + "\"; filename=\"" + safeFile + "\"\r\n")
+            .getBytes(StandardCharsets.UTF_8));
+        out.write(("Content-Type: " + safeMime + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(bytes);
+        out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private static String sanitizeQuotedHeaderValue(String value) {
+        return value.replace("\r", "").replace("\n", "").replace("\"", "_");
     }
 
     private void run(
@@ -74,13 +165,13 @@ final class NativeHttpTransport {
         URI initialUri,
         String initialMethod,
         List<HeaderEntry> headers,
-        String initialBody,
+        byte[] initialBody,
         int timeoutMs,
         Consumer<String> emit
     ) {
         URI currentUri = initialUri;
         String currentMethod = initialMethod;
-        String currentBody = initialBody;
+        byte[] currentBody = initialBody;
         int redirects = 0;
         HttpURLConnection conn = null;
         try {
@@ -118,9 +209,7 @@ final class NativeHttpTransport {
                 }
 
                 if (!"GET".equals(currentMethod) && currentBody != null) {
-                    byte[] data = currentBody != null
-                        ? currentBody.getBytes(StandardCharsets.UTF_8)
-                        : new byte[0];
+                    byte[] data = currentBody;
                     conn.setDoOutput(true);
                     conn.setFixedLengthStreamingMode(data.length);
                     try (OutputStream output = conn.getOutputStream()) {

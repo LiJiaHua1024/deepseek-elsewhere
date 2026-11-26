@@ -7,7 +7,6 @@ import {
 } from '../../app/useAndroidBackInterception.js'
 import { useTranslate, type LinkedMessage, type TranslationKey } from '../../i18n/index.js'
 import { CHAT_API_FORMATS, type ChatApiFormat } from '../../services/api/chatConfig.js'
-import type { TtsVoice } from '../../services/api/speech.js'
 import {
   BackupError,
   clearHistory,
@@ -25,14 +24,12 @@ import {
   setFontSize,
   setLocale,
   setThemePreference,
-  setTtsVoice,
   useSettings,
   type LocalePreference,
   type ThemePreference,
 } from '../../services/settings.js'
 import {
   IconChevronRightOutline14,
-  IconCloseOutline16,
   IconDataOutline16,
   IconDownloadOutline16,
   IconGlobeLanguageOutline14,
@@ -86,6 +83,16 @@ import {
   useElsewherePrefs,
 } from '../../elsewhere/preferences.js'
 import { AttachmentSettings } from '../../elsewhere/attachments/AttachmentSettings.js'
+import { getAsrSummaryLabel, useVoiceConfig } from '../../elsewhere/voice/config.js'
+import { useEdgeVoicesStore } from '../../elsewhere/voice/edgeVoices.js'
+import { stopVoicePreview } from '../../elsewhere/voice/tts.js'
+import {
+  getTtsSummaryText,
+  RefreshVoicesIcon,
+  VoiceAsrView,
+  VoicePickerView,
+  VoiceTtsView,
+} from '../../elsewhere/voice/VoiceSettingsViews.js'
 import styles from './AndroidSettings.module.css'
 
 const appVersion = document.querySelector<HTMLMetaElement>(
@@ -135,8 +142,11 @@ type Page =
   | 'mcpList'
   | 'mcpAdd'
   | 'mcpDetail'
+  | 'voiceTts'
+  | 'voicePicker'
+  | 'voiceAsr'
   | 'agreements'
-type Popup = 'locale' | 'theme' | 'voice' | 'webFetch' | 'logout' | 'delete' | 'import'
+type Popup = 'locale' | 'theme' | 'webFetch' | 'logout' | 'delete' | 'import'
 
 const parentPage: Record<Page, Page | null> = {
   root: null,
@@ -160,6 +170,9 @@ const parentPage: Record<Page, Page | null> = {
   mcpList: 'tools',
   mcpAdd: 'mcpList',
   mcpDetail: 'mcpList',
+  voiceTts: 'root',
+  voicePicker: 'voiceTts',
+  voiceAsr: 'root',
   agreements: 'root',
 }
 
@@ -290,6 +303,22 @@ const FontSizeIcon = () => (
   >
     <path d="M1.4 14.25 3.8 8.25l2.4 6M2.2 12.25h3.2" />
     <path d="M8.6 14.25 12.6 3.75l4 10.5M9.95 10.75h5.3" />
+  </svg>
+)
+
+const MicIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="6.5" y="2.25" width="5" height="8.5" rx="2.5" />
+    <path d="M3.75 8.75a5.25 5.25 0 0 0 10.5 0M9 14v2.25M6.5 16.25h5" />
   </svg>
 )
 
@@ -472,7 +501,11 @@ export const AndroidSettings = ({ chatFrame }: { chatFrame: RefObject<HTMLDivEle
               ? 'prompts'
               : section === 'tools'
                 ? 'tools'
-                : 'account'
+                : section === 'voice'
+                  ? 'voiceTts'
+                  : section === 'voiceAsr'
+                    ? 'voiceAsr'
+                    : 'account'
       }
       chatFrame={chatFrame}
       key={section}
@@ -493,7 +526,10 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const tr = (chinese: string, english: string) => (locale === 'zh-CN' ? chinese : english)
   const [page, setPage] = useState<Page>(start)
   const [popup, setPopup] = useState<Popup | null>(null)
-  const [tone, setTone] = useState(ttsVoice)
+  const [voicePickerMode, setVoicePickerMode] = useState<'edge' | 'system'>('edge')
+  const [voiceRefreshNonce, setVoiceRefreshNonce] = useState(0)
+  const voiceConfig = useVoiceConfig((state) => state.config)
+  const edgeVoices = useEdgeVoicesStore((state) => state.voices)
   const [busy, setBusy] = useState(false)
   const [update, setUpdate] = useState<UpdateStatus>({ phase: 'idle' })
   const [updateFallback, setUpdateFallback] = useState(false)
@@ -613,11 +649,13 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     mcpList: tr('MCP 服务', 'MCP servers'),
     mcpAdd: tr('添加 MCP 服务', 'Add MCP server'),
     mcpDetail: selectedMcpServer?.name ?? tr('MCP 服务', 'MCP server'),
+    voiceTts: tr('语音朗读', 'Read aloud'),
+    voicePicker: tr('选择音色', 'Select voice'),
+    voiceAsr: tr('语音输入', 'Voice input'),
     agreements: tr('服务协议', 'Service agreement'),
   }
   const language = tr('语言', 'Language')
   const appearance = tr('外观', 'Appearance')
-  const voice = tr('朗读音色', 'Read-aloud voice')
   const autoFold = tr('思考内容自动折叠', 'Collapse thinking automatically')
   const showUsageLabel = tr('对话内显示轻量用量', 'Show compact usage in chat')
   const follow = tr('跟随系统', 'Follow system')
@@ -633,19 +671,9 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
     { id: 'zh-CN', label: '中文 (简体中文)' },
     { id: 'en-US', label: 'English' },
   ]
-  const tones: { id: TtsVoice; label: string; description: string }[] = [
-    {
-      id: 'stella',
-      label: t('settingsTtsVoiceStella'),
-      description: t('settingsTtsVoiceStellaDescription'),
-    },
-    {
-      id: 'tide',
-      label: t('settingsTtsVoiceTide'),
-      description: t('settingsTtsVoiceTideDescription'),
-    },
-  ]
-  const currentTone = tones.find((item) => item.id === tone) ?? tones[0]
+  const ttsSummary = getTtsSummaryText(locale === 'zh-CN', edgeVoices)
+  const asrSummary = getAsrSummaryLabel(voiceConfig, locale === 'zh-CN')
+  void ttsVoice
   const systemFontStep = Math.min(
     6,
     Math.max(0, Math.round(((android?.systemFontScale() ?? 1) - 1) / 0.1 + 2))
@@ -683,6 +711,9 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
       return
     }
     const finish = () => {
+      if (page === 'voiceTts' || page === 'voicePicker') {
+        stopVoicePreview()
+      }
       const previous = parentPage[page]
       if (previous) {
         enterNext.current = false
@@ -897,6 +928,16 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             {tr('保存', 'Save')}
           </button>
         ) : null}
+        {screen === 'voicePicker' ? (
+          <button
+            type="button"
+            className={styles.headerAction}
+            aria-label={tr('刷新列表', 'Refresh list')}
+            onClick={() => setVoiceRefreshNonce((n) => n + 1)}
+          >
+            <RefreshVoicesIcon />
+          </button>
+        ) : null}
       </header>
       <div className={styles.scroll}>
         {screen === 'root' ? (
@@ -965,13 +1006,16 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             </Group>
             <Group label={tr('语音', 'Voice')}>
               <Row
-                label={voice}
+                label={tr('语音朗读', 'Read aloud')}
+                value={ttsSummary}
                 icon={<IconPlayMediaOutline16 />}
-                arrow={false}
-                onClick={() => {
-                  setTone(ttsVoice)
-                  setPopup('voice')
-                }}
+                onClick={() => openPage('voiceTts')}
+              />
+              <Row
+                label={tr('语音输入', 'Voice input')}
+                value={asrSummary}
+                icon={<MicIcon />}
+                onClick={() => openPage('voiceAsr')}
               />
             </Group>
             <Group label={tr('关于', 'About')}>
@@ -1434,6 +1478,24 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
             onDeleted={back}
           />
         ) : null}
+        {screen === 'voiceTts' ? (
+          <VoiceTtsView
+            variant="android"
+            onOpenVoicePicker={(mode) => {
+              stopVoicePreview()
+              setVoicePickerMode(mode)
+              openPage('voicePicker')
+            }}
+          />
+        ) : null}
+        {screen === 'voicePicker' ? (
+          <VoicePickerView
+            variant="android"
+            mode={voicePickerMode}
+            refreshNonce={voiceRefreshNonce}
+          />
+        ) : null}
+        {screen === 'voiceAsr' ? <VoiceAsrView variant="android" /> : null}
         {screen === 'agreements' ? (
           <Group>
             <Row
@@ -1563,65 +1625,6 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           }}
           dismiss={() => setFormatPicker(null)}
         />
-      ) : null}
-      {popup === 'voice' ? (
-        <div
-          className={styles.overlay}
-          data-sheet=""
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              back()
-            }
-          }}
-        >
-          <section className={styles.voiceSheet} role="dialog" aria-modal="true" aria-label={voice}>
-            <header>
-              {voice}
-              <button type="button" aria-label={t('close')} onClick={back}>
-                <IconCloseOutline16 />
-              </button>
-            </header>
-            <div
-              className={styles.voiceBody}
-              onTouchStart={(event) => {
-                event.currentTarget.dataset.swipeX = String(event.touches[0].clientX)
-              }}
-              onTouchEnd={(event) => {
-                const dx =
-                  event.changedTouches[0].clientX - Number(event.currentTarget.dataset.swipeX)
-                if (Math.abs(dx) > 32) {
-                  setTone(dx > 0 ? 'stella' : 'tide')
-                }
-              }}
-            >
-              <div className={styles.voiceArt} data-tone={tone} aria-hidden="true" />
-              <div>{currentTone.label}</div>
-              <small>{currentTone.description}</small>
-              <div className={styles.dots} role="radiogroup" aria-label={voice}>
-                {tones.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="radio"
-                    aria-label={item.label}
-                    aria-checked={tone === item.id}
-                    onClick={() => setTone(item.id)}
-                  />
-                ))}
-              </div>
-            </div>
-            <button
-              className={styles.primary}
-              type="button"
-              onClick={() => {
-                setTtsVoice(tone)
-                setPopup(null)
-              }}
-            >
-              {tr('确认', 'Confirm')}
-            </button>
-          </section>
-        </div>
       ) : null}
       {popup === 'import' ? (
         <div

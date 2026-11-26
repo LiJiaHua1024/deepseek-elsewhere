@@ -64,15 +64,20 @@ public final class MainActivity extends Activity {
     private static final int EXPORT_HISTORY = 5;
     private static final int WRITE_IMAGES = 6;
     private static final int NOTIFICATIONS = 7;
+    private static final int MICROPHONE_SYSTEM_ASR = 8;
     private WebView webView;
     private FrameLayout frame;
     private ApiKeyStore keys;
     private ApiKeyStore chatConfig;
     private ApiKeyStore providerSecrets;
     private ApiKeyStore memorySyncSecret;
+    private ApiKeyStore voiceSecrets;
     private final CustomChatTransport customChat = new CustomChatTransport();
     private final NativeHttpTransport nativeHttp = new NativeHttpTransport();
     private final NativeHttpStreamTransport nativeHttpStream = new NativeHttpStreamTransport();
+    private final NativeEdgeTtsTransport nativeEdgeTts = new NativeEdgeTtsTransport();
+    private NativeSystemSpeech nativeSystemSpeech;
+    private String pendingSystemAsrLang;
     private PyodideRuntimeStore pyodideStore;
     private SharedPreferences profilePreferences;
     private ValueCallback<Uri[]> fileCallback;
@@ -111,6 +116,7 @@ public final class MainActivity extends Activity {
         chatConfig = new ApiKeyStore(this, "custom-chat");
         providerSecrets = new ApiKeyStore(this, "provider-secrets");
         memorySyncSecret = new ApiKeyStore(this, "memory-sync-secret");
+        voiceSecrets = new ApiKeyStore(this, "voice-secrets");
         pyodideStore = new PyodideRuntimeStore(this);
         profilePreferences = getSharedPreferences("account_profile", MODE_PRIVATE);
         recentPhotos = new RecentPhotos(getContentResolver());
@@ -119,6 +125,7 @@ public final class MainActivity extends Activity {
         shadow = new ShadowStore(this);
         imageSave = new ImageSave(this);
         recorder = new NativeRecorder();
+        nativeSystemSpeech = new NativeSystemSpeech(this);
         frame = new FrameLayout(this);
         webView = new WebView(this);
         frame.addView(webView, new FrameLayout.LayoutParams(-1, -1));
@@ -453,6 +460,14 @@ public final class MainActivity extends Activity {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code == MICROPHONE) {
             startRecording();
+        } else if (code == MICROPHONE_SYSTEM_ASR) {
+            String lang = pendingSystemAsrLang;
+            pendingSystemAsrLang = null;
+            if (granted(Manifest.permission.RECORD_AUDIO)) {
+                startSystemAsrInternal(lang);
+            } else {
+                dispatchAndroidEvent("android-system-asr", "{\"type\":\"error\",\"kind\":\"denied\"}");
+            }
         } else if (code == PHOTOS) {
             notifyRecentPhotos();
         } else if (code == CAMERA && fileCallback != null) {
@@ -538,6 +553,9 @@ public final class MainActivity extends Activity {
     protected void onStop() {
         isForeground = false;
         recorder.finish(false);
+        if (nativeSystemSpeech != null) {
+            nativeSystemSpeech.cancelAsr();
+        }
         webView.evaluateJavascript("window.dispatchEvent(new Event('android-recording-interrupted'))", null);
         super.onStop();
     }
@@ -549,6 +567,8 @@ public final class MainActivity extends Activity {
         customChat.close();
         nativeHttp.close();
         nativeHttpStream.close();
+        nativeEdgeTts.close();
+        if (nativeSystemSpeech != null) nativeSystemSpeech.destroy();
         if (pyodideStore != null) pyodideStore.close();
         inAppBack.setEnabled(false);
         if (accessibility != null) {
@@ -583,6 +603,21 @@ public final class MainActivity extends Activity {
             : recorder.start() ? "ready" : "error";
         webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('android-recording', "
             + "{detail: '" + state + "'}))", null);
+    }
+
+    private void startSystemAsrInternal(String langTag) {
+        if (nativeSystemSpeech == null) return;
+        nativeSystemSpeech.startAsr(langTag, json -> dispatchAndroidEvent("android-system-asr", json));
+    }
+
+    private void dispatchAndroidEvent(String eventName, String detailJson) {
+        runOnUiThread(() -> {
+            if (isDestroyed() || webView == null) return;
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('" + eventName + "',{detail:" + detailJson + "}))",
+                null
+            );
+        });
     }
 
     private final class DeviceBridge {
@@ -651,6 +686,90 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean writeMemorySyncSecret(String value) { return memorySyncSecret.write(value); }
+
+        @JavascriptInterface
+        public String readVoiceSecrets() { return voiceSecrets.read(); }
+
+        @JavascriptInterface
+        public boolean writeVoiceSecrets(String value) { return voiceSecrets.write(value); }
+
+        @JavascriptInterface
+        public boolean beginEdgeTts(String requestId, String payload) {
+            return nativeEdgeTts.synthesize(requestId, payload,
+                json -> dispatchAndroidEvent("android-edge-tts", json));
+        }
+
+        @JavascriptInterface
+        public void cancelEdgeTts(String requestId) {
+            nativeEdgeTts.cancel(requestId);
+        }
+
+        @JavascriptInterface
+        public boolean fetchEdgeVoices(String requestId) {
+            return nativeEdgeTts.fetchVoices(requestId,
+                json -> dispatchAndroidEvent("android-edge-voices", json));
+        }
+
+        @JavascriptInterface
+        public void listSystemTtsVoices(String requestId) {
+            if (nativeSystemSpeech == null) return;
+            nativeSystemSpeech.listVoices(requestId,
+                json -> dispatchAndroidEvent("android-system-tts-voices", json));
+        }
+
+        @JavascriptInterface
+        public void speakSystemTts(String utteranceId, String text, String voiceId, float rate) {
+            if (nativeSystemSpeech == null) return;
+            nativeSystemSpeech.speak(utteranceId, text, voiceId, rate,
+                json -> dispatchAndroidEvent("android-system-tts", json));
+        }
+
+        @JavascriptInterface
+        public void stopSystemTts() {
+            if (nativeSystemSpeech != null) nativeSystemSpeech.stopTts();
+        }
+
+        @JavascriptInterface
+        public boolean isSystemAsrAvailable() {
+            return nativeSystemSpeech != null && nativeSystemSpeech.isAsrAvailable();
+        }
+
+        @JavascriptInterface
+        public void startSystemAsr(String langTag) {
+            runOnUiThread(() -> {
+                if (granted(Manifest.permission.RECORD_AUDIO)) {
+                    startSystemAsrInternal(langTag);
+                } else {
+                    pendingSystemAsrLang = langTag;
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE_SYSTEM_ASR);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void stopSystemAsr() {
+            if (nativeSystemSpeech != null) nativeSystemSpeech.stopAsr();
+        }
+
+        @JavascriptInterface
+        public void cancelSystemAsr() {
+            if (nativeSystemSpeech != null) nativeSystemSpeech.cancelAsr();
+        }
+
+        @JavascriptInterface
+        public double systemAsrLevel() {
+            return nativeSystemSpeech != null ? nativeSystemSpeech.getAsrLevel() : 0;
+        }
+
+        @JavascriptInterface
+        public boolean beginAsrUpload(String requestId, String payloadJson) {
+            byte[] wav = recorder.takeWavBytes();
+            if (wav == null || wav.length == 0) {
+                return false;
+            }
+            return nativeHttp.beginMultipartAudio(requestId, payloadJson, wav,
+                json -> dispatchAndroidEvent("android-http-response", json));
+        }
 
         @JavascriptInterface
         public String beginChatRequest(String endpoint, String format, String body) {

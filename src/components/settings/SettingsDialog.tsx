@@ -8,6 +8,7 @@ import {
   IconDownloadOutline16,
   IconFollowsystemOutline16,
   IconLightOutline16,
+  IconPlayMediaOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
 } from '../base/icons.js'
@@ -28,7 +29,6 @@ import {
   setLocale,
   setLocation,
   setThemePreference,
-  setTtsVoice,
   useSettings,
   type ThemePreference,
 } from '../../services/settings.js'
@@ -50,6 +50,7 @@ import { SearchToolsSettings } from '../../elsewhere/search/SearchToolsSettings.
 import { useIsZh } from '../../elsewhere/text.js'
 import { UsageToggleSetting } from '../../elsewhere/UsageToggleSetting.js'
 import { AttachmentSettings } from '../../elsewhere/attachments/AttachmentSettings.js'
+import { DesktopVoiceSettings } from '../../elsewhere/voice/VoiceSettingsViews.js'
 import styles from './Settings.module.css'
 
 const ModelsIcon16 = () => (
@@ -131,6 +132,7 @@ const sections: {
   { value: 'models', zh: '模型服务', en: 'Model services', icon: <ModelsIcon16 /> },
   { value: 'prompts', zh: '系统指令', en: 'Instructions', icon: <PromptsIcon16 /> },
   { value: 'tools', zh: '联网搜索与工具', en: 'Web Search & Tools', icon: <ToolsIcon16 /> },
+  { value: 'voice', zh: '语音', en: 'Voice', icon: <IconPlayMediaOutline16 /> },
   { value: 'memory', zh: '聊天记忆', en: 'Chat memory', icon: <PromptsIcon16 /> },
   { value: 'account', label: 'accountManagement', icon: <ProfileIcon /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
@@ -145,10 +147,19 @@ const SettingsContent = () => {
   const activeProvider = providers.find((item) => item.id === activeModel.providerId)
   const activeModelItem = activeProvider?.models.find((item) => item.id === activeModel.modelId)
   const modelLabel = activeModelItem?.label || activeModel.modelId
+  const [voiceTab] = useState<'tts' | 'asr'>(() =>
+    useSettingsDialog.getState().section === 'voiceAsr' ? 'asr' : 'tts'
+  )
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState<SettingsSection>(() => {
     const initial = useSettingsDialog.getState().section
-    return initial === 'advanced' ? 'models' : initial
+    if (initial === 'advanced') {
+      return 'models'
+    }
+    if (initial === 'voiceAsr') {
+      return 'voice'
+    }
+    return initial
   })
   // 切换分组不丢失正在输入的 API Key 与导入状态
   const apiKeyEditor = useApiKeyEditor()
@@ -189,7 +200,6 @@ const SettingsContent = () => {
             <>
               <ThemeSetting />
               <LocaleSetting />
-              <TtsVoiceSetting />
               <LocationSetting />
               <UsageToggleSetting />
               <AttachmentSettings />
@@ -200,6 +210,8 @@ const SettingsContent = () => {
             <SystemPromptsSettings />
           ) : section === 'tools' ? (
             <SearchToolsSettings variant="web" />
+          ) : section === 'voice' ? (
+            <DesktopVoiceSettings initialTab={voiceTab} />
           ) : section === 'memory' ? (
             <MemorySettings />
           ) : section === 'account' ? (
@@ -404,29 +416,6 @@ const LocaleSetting = () => {
             { value: 'en-US', label: t('settingsLocaleEnUS'), lang: 'en' },
           ]}
           onChange={setLocale}
-        />
-      }
-    />
-  )
-}
-
-/** 朗读音色：stella（海星，女声）/ tide（暗潮，男声） */
-const TtsVoiceSetting = () => {
-  const t = useTranslate()
-  const ttsVoice = useSettings((state) => state.ttsVoice)
-  return (
-    <SettingCell
-      label={t('settingsTtsVoice')}
-      status={null}
-      action={
-        <Select
-          ariaLabel={t('settingsTtsVoice')}
-          value={ttsVoice}
-          options={[
-            { value: 'stella', label: t('settingsTtsVoiceStella') },
-            { value: 'tide', label: t('settingsTtsVoiceTide') },
-          ]}
-          onChange={setTtsVoice}
         />
       }
     />

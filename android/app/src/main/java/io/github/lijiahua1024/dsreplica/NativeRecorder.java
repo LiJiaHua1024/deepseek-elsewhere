@@ -74,13 +74,29 @@ final class NativeRecorder {
         byte[] pcm = result;
         result = null;
         if (pcm == null) return null;
+        return new WebResourceResponse("audio/wav", null, 200, "OK", Maps.of("Cache-Control", "no-store"),
+            new SequenceInputStream(new ByteArrayInputStream(buildWavHeader(pcm.length)),
+                new ByteArrayInputStream(pcm)));
+    }
+
+    synchronized byte[] takeWavBytes() {
+        byte[] pcm = result;
+        result = null;
+        if (pcm == null) return null;
+        byte[] header = buildWavHeader(pcm.length);
+        byte[] wav = new byte[header.length + pcm.length];
+        System.arraycopy(header, 0, wav, 0, header.length);
+        System.arraycopy(pcm, 0, wav, header.length, pcm.length);
+        return wav;
+    }
+
+    private static byte[] buildWavHeader(int pcmLength) {
         ByteBuffer header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
-        header.put(ascii("RIFF")).putInt(36 + pcm.length).put(ascii("WAVEfmt "))
+        header.put(ascii("RIFF")).putInt(36 + pcmLength).put(ascii("WAVEfmt "))
             .putInt(16).putShort((short) 1).putShort((short) 1)
             .putInt(SAMPLE_RATE).putInt(SAMPLE_RATE * 2).putShort((short) 2).putShort((short) 16)
-            .put(ascii("data")).putInt(pcm.length);
-        return new WebResourceResponse("audio/wav", null, 200, "OK", Maps.of("Cache-Control", "no-store"),
-            new SequenceInputStream(new ByteArrayInputStream(header.array()), new ByteArrayInputStream(pcm)));
+            .put(ascii("data")).putInt(pcmLength);
+        return header.array();
     }
 
     private static byte[] ascii(String value) {

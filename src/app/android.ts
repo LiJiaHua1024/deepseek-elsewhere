@@ -27,6 +27,20 @@ export type AndroidBridge = {
   writeProviderSecrets?: (value: string | null) => boolean
   readMemorySyncSecret?: () => string | null
   writeMemorySyncSecret?: (value: string | null) => boolean
+  readVoiceSecrets?: () => string | null
+  writeVoiceSecrets?: (value: string | null) => boolean
+  beginEdgeTts?: (requestId: string, payload: string) => boolean
+  cancelEdgeTts?: (requestId: string) => void
+  fetchEdgeVoices?: (requestId: string) => boolean
+  listSystemTtsVoices?: (requestId: string) => void
+  speakSystemTts?: (utteranceId: string, text: string, voiceId: string, rate: number) => void
+  stopSystemTts?: () => void
+  isSystemAsrAvailable?: () => boolean
+  startSystemAsr?: (langTag: string) => void
+  stopSystemAsr?: () => void
+  cancelSystemAsr?: () => void
+  systemAsrLevel?: () => number
+  beginAsrUpload?: (requestId: string, payload: string) => boolean
   beginChatRequest: (endpoint: string, format: string, body: string) => string | null
   cancelChatRequest: (id: string) => void
   beginHttpRequest?: (requestId: string, payload: string) => boolean
@@ -453,4 +467,255 @@ export const saveAndroidImage = async (name: string, blob: Blob) => {
   if (!device.finishImageSave(true)) {
     throw new Error('Unable to save the image')
   }
+}
+
+const decodeBase64Bytes = (base64: string): Uint8Array => {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
+export const synthesizeAndroidEdgeTts = (
+  options: { text: string; voice: string; rate: string },
+  signal?: AbortSignal
+): Promise<Uint8Array> => {
+  const device = android
+  if (!device?.beginEdgeTts) {
+    return Promise.reject(new Error('Android Edge speech bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const requestId = createId()
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-edge-tts', onEvent)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.cancelEdgeTts?.(requestId)
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onEvent = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ id?: string; type?: string; bytes?: string; message?: string }>
+      ).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      if (detail.type === 'audio' && typeof detail.bytes === 'string') {
+        resolve(decodeBase64Bytes(detail.bytes))
+      } else {
+        reject(new Error(detail.message || 'Edge speech synthesis failed'))
+      }
+    }
+    window.addEventListener('android-edge-tts', onEvent)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (!device.beginEdgeTts?.(requestId, JSON.stringify(options))) {
+      cleanup()
+      reject(new Error('Unable to start Edge speech synthesis'))
+    }
+  })
+}
+
+export const fetchAndroidEdgeVoices = (signal?: AbortSignal): Promise<string> => {
+  const device = android
+  if (!device?.fetchEdgeVoices) {
+    return Promise.reject(new Error('Android Edge voice list bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const requestId = createId()
+  return new Promise<string>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-edge-voices', onEvent)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.cancelEdgeTts?.(requestId)
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onEvent = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ id?: string; ok?: boolean; text?: string; error?: string }>
+      ).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      if (detail.ok && typeof detail.text === 'string') {
+        resolve(detail.text)
+      } else {
+        reject(new Error(detail.error || 'Failed to load Edge voice list'))
+      }
+    }
+    window.addEventListener('android-edge-voices', onEvent)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (!device.fetchEdgeVoices?.(requestId)) {
+      cleanup()
+      reject(new Error('Unable to start Edge voice list request'))
+    }
+  })
+}
+
+export type NativeSystemVoiceRaw = {
+  id: string
+  name: string
+  locale: string
+  network?: boolean
+}
+
+export const listAndroidSystemVoices = (
+  signal?: AbortSignal
+): Promise<NativeSystemVoiceRaw[]> => {
+  const device = android
+  if (!device?.listSystemTtsVoices) {
+    return Promise.reject(new Error('Android system speech bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const requestId = createId()
+  return new Promise<NativeSystemVoiceRaw[]>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-system-tts-voices', onEvent)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onEvent = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          id?: string
+          ok?: boolean
+          voices?: NativeSystemVoiceRaw[]
+          error?: string
+        }>
+      ).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      if (detail.ok && Array.isArray(detail.voices)) {
+        resolve(detail.voices)
+      } else {
+        reject(new Error(detail.error || 'Unable to list system voices'))
+      }
+    }
+    window.addEventListener('android-system-tts-voices', onEvent)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    device.listSystemTtsVoices?.(requestId)
+  })
+}
+
+export const speakAndroidSystemTts = (
+  options: { text: string; voiceId: string; rate: number },
+  signal?: AbortSignal,
+  onStart?: () => void
+): Promise<void> => {
+  const device = android
+  if (!device?.speakSystemTts) {
+    return Promise.reject(new Error('Android system speech bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const utteranceId = createId()
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-system-tts', onEvent)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.stopSystemTts?.()
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onEvent = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ id?: string; type?: string; message?: string }>
+      ).detail
+      if (detail?.id !== utteranceId) {
+        return
+      }
+      if (detail.type === 'start') {
+        onStart?.()
+        return
+      }
+      cleanup()
+      if (detail.type === 'done') {
+        resolve()
+      } else {
+        reject(new Error(detail.message || 'System speech failed'))
+      }
+    }
+    window.addEventListener('android-system-tts', onEvent)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    device.speakSystemTts?.(utteranceId, options.text, options.voiceId, options.rate)
+  })
+}
+
+export const uploadAndroidAsrAudio = (
+  options: {
+    url: string
+    headers?: Record<string, string>
+    fields?: Record<string, string>
+    fileField?: string
+    fileName?: string
+    fileMime?: string
+    timeoutMs?: number
+  },
+  signal?: AbortSignal
+): Promise<NativeHttpResponse> => {
+  const device = android
+  if (!device?.beginAsrUpload) {
+    return Promise.reject(new Error('Android audio upload bridge is unavailable'))
+  }
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+  }
+  const requestId = createId()
+  return new Promise<NativeHttpResponse>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener('android-http-response', onResponse)
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      cleanup()
+      device.cancelHttpRequest?.(requestId)
+      reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    const onResponse = (event: Event) => {
+      const detail = (event as CustomEvent<NativeHttpResponse & { id?: string }>).detail
+      if (detail?.id !== requestId) {
+        return
+      }
+      cleanup()
+      resolve({
+        ok: Boolean(detail.ok),
+        status: typeof detail.status === 'number' ? detail.status : 0,
+        contentType: typeof detail.contentType === 'string' ? detail.contentType : '',
+        headers: normalizeResponseHeaders(detail.headers),
+        text: typeof detail.text === 'string' ? detail.text : '',
+        truncated: Boolean(detail.truncated),
+        ...(typeof detail.error === 'string' && detail.error ? { error: detail.error } : {}),
+      })
+    }
+    window.addEventListener('android-http-response', onResponse)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    const started = device.beginAsrUpload?.(requestId, JSON.stringify(options))
+    if (!started) {
+      cleanup()
+      reject(new Error('Unable to start Android audio upload'))
+    }
+  })
 }

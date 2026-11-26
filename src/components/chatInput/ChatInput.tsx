@@ -52,6 +52,7 @@ import { useTranslate } from '../../i18n/index.js'
 import { ContextRing } from '../../elsewhere/ContextRing.js'
 import { LowBalanceBanner } from '../../elsewhere/LowBalanceBanner.js'
 import { isSearchEngineReady, useSearchToolsConfig } from '../../elsewhere/search/config.js'
+import { isAsrReady, useVoiceConfig } from '../../elsewhere/voice/config.js'
 import { useIsZh } from '../../elsewhere/text.js'
 import { ToolConfirmationBar } from '../../elsewhere/tools/ToolConfirmationBar.js'
 import { openToolsDrawer, useActiveToolsCount } from '../../elsewhere/tools/toolsDrawerState.js'
@@ -155,6 +156,9 @@ const Input = ({
   const isMobile = useIsMobile()
   const zh = useIsZh()
   const search = useSettings((state) => state.search)
+  const voiceConfig = useVoiceConfig((state) => state.config)
+  const voiceAsrApiKey = useVoiceConfig((state) => state.secrets.asrApiKey)
+  const asrReady = isAsrReady(voiceConfig, apiKey, voiceAsrApiKey)
   const searchToolsConfig = useSearchToolsConfig()
   const usingExternalSearch = customEndpoint || searchToolsConfig.useExternalOnOfficial
   const searchEngineReady = isSearchEngineReady(searchToolsConfig, apiKey)
@@ -184,10 +188,10 @@ const Input = ({
   }, [attachments, editingHere, sessionId, uploadKey])
 
   useEffect(() => {
-    if (!apiKey) {
+    if (!asrReady) {
       useVoiceMode.setState({ enabled: false })
     }
-  }, [apiKey])
+  }, [asrReady])
 
   useLayoutEffect(() => {
     const toggles = togglesRef.current
@@ -296,8 +300,26 @@ const Input = ({
       textarea?.setSelectionRange(start + transcript.length, start + transcript.length)
     })
   })
+  const ensureAsrReady = () => {
+    const settings = useSettings.getState()
+    const voiceState = useVoiceConfig.getState()
+    if (isAsrReady(voiceState.config, settings.apiKey, voiceState.secrets.asrApiKey)) {
+      return true
+    }
+    if (voiceState.config.asrProvider === 'deepseek') {
+      return ensureApiKey(true)
+    }
+    showToast(
+      settings.locale === 'zh-CN'
+        ? '请先在「设置 → 语音输入」完成配置'
+        : 'Configure voice input in Settings → Voice input'
+    )
+    openSettings('voiceAsr')
+    return false
+  }
+
   const hold = useHoldToTalk(voice, () => {
-    if (importingHistory || streaming || !ensureApiKey(true)) {
+    if (importingHistory || streaming || !ensureAsrReady()) {
       return false
     }
     setShowAttachments(false)
@@ -727,7 +749,7 @@ const Input = ({
                     aria-label={t(voiceMode ? 'androidTextMode' : 'androidVoiceMode')}
                     aria-pressed={voiceMode}
                     onClick={() => {
-                      if (!voiceMode && !ensureApiKey(true)) {
+                      if (!voiceMode && !ensureAsrReady()) {
                         return
                       }
                       voice.cancel()
@@ -748,7 +770,7 @@ const Input = ({
                   onClick={() => {
                     if (
                       voice.status !== 'idle' ||
-                      (!useChatStore.getState().importingHistory && ensureApiKey(true))
+                      (!useChatStore.getState().importingHistory && ensureAsrReady())
                     ) {
                       void voice.toggle()
                     }

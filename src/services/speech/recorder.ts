@@ -24,7 +24,8 @@ export type Recording = {
 
 const startAndroidRecording = async (
   device: NonNullable<typeof android>,
-  onLimit: () => void
+  onLimit: () => void,
+  keepNativeWav?: boolean
 ): Promise<Recording> => {
   const state = await new Promise<string>((resolve) => {
     window.addEventListener(
@@ -57,6 +58,9 @@ const startAndroidRecording = async (
       if (!close(true)) {
         return null
       }
+      if (keepNativeWav) {
+        return new Blob([], { type: 'audio/wav' })
+      }
       const response = await fetch('/recording.wav', { cache: 'no-store' })
       return response.ok ? response.blob() : null
     },
@@ -68,9 +72,12 @@ const startAndroidRecording = async (
 }
 
 /** 开始录音；到达时长上限时调用 onLimit，由调用方决定何时 stop */
-export const startRecording = async (onLimit: () => void): Promise<Recording> => {
+export const startRecording = async (
+  onLimit: () => void,
+  options?: { keepNativeWav?: boolean }
+): Promise<Recording> => {
   if (android) {
-    return startAndroidRecording(android, onLimit)
+    return startAndroidRecording(android, onLimit, options?.keepNativeWav)
   }
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },

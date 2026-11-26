@@ -70,6 +70,9 @@
 .headerAction {
   position: absolute;
   right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 32px;
   padding: 0 10px;
   border: 0;

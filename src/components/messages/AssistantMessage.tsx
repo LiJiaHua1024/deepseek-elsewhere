@@ -32,6 +32,7 @@ import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js
 import { AndroidTextSelection } from './AndroidTextSelection.js'
 import { PythonCharts } from '../../elsewhere/python/PythonCharts.js'
 import { useAttachmentProgress } from '../../elsewhere/attachments/progress.js'
+import { isTtsReady, useVoiceConfig } from '../../elsewhere/voice/config.js'
 import { ReadAloudButton } from './ReadAloudButton.js'
 import { CopyButton } from './CopyButton.js'
 import { ReplyArea } from './ReplyArea.js'
@@ -69,7 +70,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   const zh = useSettings((state) => state.locale === 'zh-CN')
   const attachmentProgress = useAttachmentProgress((state) => state.sessions[sessionId])
   const format = useSettings((state) => state.chatConfig.format)
-  const canReadAloud = useSettings((state) => Boolean(state.apiKey))
+  const deepSeekApiKey = useSettings((state) => state.apiKey)
+  const voiceConfig = useVoiceConfig((state) => state.config)
+  const voiceTtsApiKey = useVoiceConfig((state) => state.secrets.ttsApiKey)
+  const canReadAloud = isTtsReady(voiceConfig, deepSeekApiKey, voiceTtsApiKey)
   const view = useReplyView(message, streaming)
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
@@ -114,20 +118,22 @@ export const AssistantMessage = memo(function AssistantMessage({
     )
   }
   useEffect(() => {
+    const voiceState = useVoiceConfig.getState()
+    const settingsState = useSettings.getState()
     if (
       android &&
       wasStreaming.current &&
       !streaming &&
-      !customEndpoint &&
       isLast &&
       responseText &&
       message.stopReason === 'end_turn' &&
-      useSettings.getState().autoRead
+      settingsState.autoRead &&
+      isTtsReady(voiceState.config, settingsState.apiKey, voiceState.secrets.ttsApiKey)
     ) {
       toggleReadAloud(message.id, responseText, (error) => showToast(describeReadAloudError(error)))
     }
     wasStreaming.current = streaming
-  }, [customEndpoint, isLast, message.id, message.stopReason, responseText, streaming])
+  }, [isLast, message.id, message.stopReason, responseText, streaming])
   const waiting =
     streaming && view.steps.length === 0 && !view.answer && (android || !message.thinking)
   const progressText = attachmentProgress?.length
@@ -227,7 +233,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                     regenerateReply(sessionId, message.id)
                   },
                 },
-                ...(!customEndpoint || canReadAloud
+                ...(canReadAloud
                   ? [
                       {
                         key: 'read',
@@ -378,7 +384,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 }
               />
             ) : null}
-            {responseText && !refused && (!customEndpoint || canReadAloud) ? (
+            {responseText && !refused && canReadAloud ? (
               <ReadAloudButton messageId={message.id} text={responseText} />
             ) : null}
             <IconButton
