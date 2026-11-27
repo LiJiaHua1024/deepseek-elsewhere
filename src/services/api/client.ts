@@ -1,5 +1,10 @@
 import { android } from '../../app/android.js'
 import type { ReasoningEffort } from '../../elsewhere/models/types.js'
+import {
+  isLocalDateReminder,
+  isToolResultOnlyUserContent,
+  prependReminderToUserContent,
+} from '../../elsewhere/tools/systemTime.js'
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import { CHAT_API_PATHS, type ChatConfig } from './chatConfig.js'
 import { createOpenAIStreamAdapter, openAIRequest, readOpenAIFrame } from './openaiChat.js'
@@ -165,11 +170,14 @@ export const serializeOfficialAnthropicBody = (body: CreateMessageRequest) => {
     safety_check,
     title,
   } = body
+  const officialMessages = messages.filter(
+    (message) => !(message.role === 'latest_reminder' && isLocalDateReminder(message.content))
+  )
   const base = {
     model,
     max_tokens,
     system,
-    messages,
+    messages: officialMessages,
     thinking,
     ...(safety_check ? { safety_check } : {}),
     ...(title ? { title } : {}),
@@ -346,25 +354,41 @@ export const customMessagesRequest = ({
   const resolvedMaxTokens = thinkingEnabled
     ? Math.max(max_tokens, budgetTokens + 4_096)
     : max_tokens
+  let pendingReminder: string | undefined
+  const serializedMessages: CreateMessageRequest['messages'] = []
+  for (const message of messages) {
+    if (message.role === 'latest_reminder') {
+      pendingReminder = message.content
+      continue
+    }
+    if (message.role === 'assistant') {
+      pendingReminder = undefined
+      const content = message.content.filter((block) => {
+        if (block.type === 'text' || block.type === 'tool_use') {
+          return true
+        }
+        return block.type === 'thinking' && Boolean(block.signature)
+      })
+      if (content.length) {
+        serializedMessages.push({ ...message, content })
+      }
+      continue
+    }
+    if (pendingReminder && !isToolResultOnlyUserContent(message.content)) {
+      serializedMessages.push({
+        ...message,
+        content: prependReminderToUserContent(message.content, pendingReminder),
+      })
+      pendingReminder = undefined
+      continue
+    }
+    serializedMessages.push(message)
+  }
   return {
     model,
     system: system || undefined,
     max_tokens: resolvedMaxTokens,
-    messages: messages.flatMap((message): CreateMessageRequest['messages'] => {
-      if (message.role === 'latest_reminder') {
-        return []
-      }
-      if (message.role === 'assistant') {
-        const content = message.content.filter((block) => {
-          if (block.type === 'text' || block.type === 'tool_use') {
-            return true
-          }
-          return block.type === 'thinking' && Boolean(block.signature)
-        })
-        return content.length ? [{ ...message, content }] : []
-      }
-      return [message]
-    }),
+    messages: serializedMessages,
     ...(thinkingEnabled
       ? { thinking: { type: 'enabled' as const, budget_tokens: budgetTokens } }
       : {}),

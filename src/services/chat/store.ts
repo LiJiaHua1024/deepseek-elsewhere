@@ -110,6 +110,7 @@ import {
   type DraftFilePayload,
 } from './drafts.js'
 import { createLatestReminder } from './latestReminder.js'
+import { formatLocalDateLine } from '../../elsewhere/tools/systemTime.js'
 import {
   applyEvent,
   canContinueReply,
@@ -1675,10 +1676,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           continue
         }
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
-        const latestReminder = custom
-          ? undefined
-          : prepared.prefix
-            ? prepared.prefix.latestReminder
+        const latestReminder = prepared.prefix
+          ? prepared.prefix.latestReminder
+          : custom
+            ? formatLocalDateLine()
             : createLatestReminder(useSettings.getState())
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)

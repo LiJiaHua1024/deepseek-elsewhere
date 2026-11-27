@@ -8,6 +8,8 @@ import {
 } from '../src/services/api/openaiChat.js'
 import { readMessageEvent } from '../src/services/api/parseEvent.js'
 import type { CreateMessageRequest, MessageStreamEvent } from '../src/services/api/types.js'
+import { toRequestMessages } from '../src/services/chat/reply.js'
+import type { Message, UserMessage } from '../src/services/chat/types.js'
 
 const sampleTools = [
   {
@@ -362,5 +364,148 @@ describe('OpenAI Responses tool calling', () => {
     const msgDelta = events.find((e) => e.type === 'message_delta')
     assert.ok(msgDelta && msgDelta.type === 'message_delta')
     assert.equal(msgDelta.delta.stop_reason, 'end_turn')
+  })
+})
+
+describe('Daily date snapshot folding across protocols', () => {
+  const day1 = 'Current local date: 2026-11-27 (Friday, UTC+08:00).'
+  const day2 = 'Current local date: 2026-11-28 (Saturday, UTC+08:00).'
+
+  const makeHistory = (): Message[] => [
+    { id: 'u1', role: 'user', content: 'First question', files: [], createdAt: 1 },
+    {
+      id: 'a1',
+      role: 'assistant',
+      createdAt: 2,
+      model: 'gpt-5',
+      prefix: false,
+      status: 'done',
+      latestReminder: day1,
+      blocks: [{ type: 'text', text: 'First answer' }],
+    },
+  ]
+
+  const q2: UserMessage = {
+    id: 'u2',
+    role: 'user',
+    content: 'Follow-up same day',
+    files: [],
+    createdAt: 3,
+  }
+
+  const q3: UserMessage = {
+    id: 'u3',
+    role: 'user',
+    content: 'Question next day',
+    files: [],
+    createdAt: 5,
+  }
+
+  it('deduplicates same-day snapshots and preserves historical prefix across turns', () => {
+    const sameDayMessages = toRequestMessages(makeHistory(), q2, undefined, false, day1)
+    const nextDayHistory: Message[] = [
+      ...makeHistory(),
+      q2,
+      {
+        id: 'a2',
+        role: 'assistant',
+        createdAt: 4,
+        model: 'gpt-5',
+        prefix: false,
+        status: 'done',
+        latestReminder: day1,
+        blocks: [{ type: 'text', text: 'Second answer' }],
+      },
+    ]
+    const nextDayMessages = toRequestMessages(nextDayHistory, q3, undefined, false, day2)
+
+    const baseReq = {
+      model: 'test-model',
+      max_tokens: 1024,
+      system: 'Static system prompt.',
+      thinking: { type: 'disabled' as const },
+    }
+
+    const anthropicSameDay = customMessagesRequest({ ...baseReq, messages: sameDayMessages })
+    const anthropicNextDay = customMessagesRequest({ ...baseReq, messages: nextDayMessages })
+    assert.equal(anthropicSameDay.system, 'Static system prompt.')
+    assert.deepEqual(anthropicSameDay.messages, [
+      { role: 'user', content: `[${day1}]\n\nFirst question` },
+      { role: 'assistant', content: [{ type: 'text', text: 'First answer' }] },
+      { role: 'user', content: 'Follow-up same day' },
+    ])
+    assert.deepEqual(anthropicNextDay.messages.slice(0, 3), anthropicSameDay.messages)
+    assert.deepEqual(anthropicNextDay.messages[4], {
+      role: 'user',
+      content: `[${day2}]\n\nQuestion next day`,
+    })
+
+    const chatSameDay = openAIRequest('chat', { ...baseReq, messages: sameDayMessages }, false) as {
+      messages: Record<string, unknown>[]
+    }
+    const chatNextDay = openAIRequest('chat', { ...baseReq, messages: nextDayMessages }, false) as {
+      messages: Record<string, unknown>[]
+    }
+    assert.deepEqual(chatSameDay.messages, [
+      { role: 'system', content: 'Static system prompt.' },
+      { role: 'user', content: `[${day1}]\n\nFirst question` },
+      { role: 'assistant', content: 'First answer' },
+      { role: 'user', content: 'Follow-up same day' },
+    ])
+    assert.deepEqual(chatNextDay.messages.slice(0, 4), chatSameDay.messages)
+    assert.deepEqual(chatNextDay.messages[5], {
+      role: 'user',
+      content: `[${day2}]\n\nQuestion next day`,
+    })
+
+    const responsesNextDay = openAIRequest(
+      'responses',
+      { ...baseReq, messages: nextDayMessages },
+      false
+    ) as {
+      instructions: string
+      input: Record<string, unknown>[]
+    }
+    assert.equal(responsesNextDay.instructions, 'Static system prompt.')
+    assert.deepEqual(responsesNextDay.input[0], {
+      role: 'user',
+      content: `[${day1}]\n\nFirst question`,
+    })
+    assert.deepEqual(responsesNextDay.input[2], {
+      role: 'user',
+      content: 'Follow-up same day',
+    })
+    assert.deepEqual(responsesNextDay.input[4], {
+      role: 'user',
+      content: `[${day2}]\n\nQuestion next day`,
+    })
+  })
+
+  it('omits custom local-date snapshots when sending to official DeepSeek chat', () => {
+    const req = openAIRequest(
+      'chat',
+      {
+        model: 'deepseek-chat',
+        max_tokens: 1024,
+        system: 'Static',
+        thinking: { type: 'disabled' },
+        messages: [
+          { role: 'latest_reminder', content: day1 },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: [{ type: 'text', text: 'Hi' }] },
+          { role: 'latest_reminder', content: '2026-11-28,星期六,成都,Web,中文' },
+          { role: 'user', content: 'Next' },
+        ],
+      },
+      true
+    ) as { messages: Record<string, unknown>[] }
+
+    assert.deepEqual(req.messages, [
+      { role: 'system', content: 'Static' },
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi' },
+      { role: 'latest_reminder', content: '2026-11-28,星期六,成都,Web,中文' },
+      { role: 'user', content: 'Next' },
+    ])
   })
 })

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
-import { injectLocalDateTime } from '../tools/systemTime.js'
 import { createBuiltinPromptPresets } from './presets.js'
 import type { SessionPromptOverride, SystemPromptPreset } from './types.js'
 
@@ -195,18 +194,16 @@ export const buildRequestSystemPrompt = ({
   customEndpoint,
   officialDefaultPrompt,
   effectivePromptContent,
-  now,
 }: {
   customEndpoint: boolean
   officialDefaultPrompt: string
   effectivePromptContent: string
-  now?: Date
 }): string => {
   const trimmed = effectivePromptContent.trim()
-  if (!customEndpoint) {
-    return trimmed || officialDefaultPrompt
+  if (customEndpoint) {
+    return trimmed
   }
-  return injectLocalDateTime(trimmed, now)
+  return trimmed || officialDefaultPrompt
 }
 
 export const buildMemorySystemPromptBlock = (memoryIndex: string): string => {

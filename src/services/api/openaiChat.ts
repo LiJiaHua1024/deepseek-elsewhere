@@ -1,3 +1,7 @@
+import {
+  isLocalDateReminder,
+  prependReminderToUserContent,
+} from '../../elsewhere/tools/systemTime.js'
 import type { ChatApiFormat } from './chatConfig.js'
 import type {
   ClientToolUseBlockParam,
@@ -67,14 +71,26 @@ export const openAIRequest = (
   body: CreateMessageRequest,
   deepSeek: boolean
 ) => {
+  let pendingReminder: string | undefined
   const messages = body.messages.flatMap<OpenAIItem>(({ role, content }) => {
     if (role === 'latest_reminder') {
-      return deepSeek && format === 'chat' ? [{ role, content }] : []
+      if (deepSeek) {
+        return format === 'chat' && !isLocalDateReminder(content) ? [{ role, content }] : []
+      }
+      pendingReminder = content
+      return []
     }
     if (typeof content === 'string') {
+      if (role === 'user' && pendingReminder) {
+        const merged = prependReminderToUserContent(content, pendingReminder)
+        pendingReminder = undefined
+        return [{ role, content: merged }]
+      }
+      pendingReminder = undefined
       return [{ role, content }]
     }
     if (role === 'assistant') {
+      pendingReminder = undefined
       const text = content
         .flatMap((block) => (block.type === 'text' ? [block.text] : []))
         .join('')
@@ -121,7 +137,14 @@ export const openAIRequest = (
     const regularBlocks = content.filter(
       (block): block is RegularUserBlock => block.type !== 'tool_result'
     )
-    const parts = regularBlocks
+    const mergedRegularBlocks =
+      pendingReminder && regularBlocks.length > 0
+        ? (prependReminderToUserContent(regularBlocks, pendingReminder) as RegularUserBlock[])
+        : regularBlocks
+    if (pendingReminder && regularBlocks.length > 0) {
+      pendingReminder = undefined
+    }
+    const parts = mergedRegularBlocks
       .map((block) => userPart(format, block, deepSeek))
       .filter((part): part is NonNullable<ReturnType<typeof userPart>> => part !== null)
 

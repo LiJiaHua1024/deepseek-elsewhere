@@ -19,26 +19,20 @@ describe('Custom system instructions and priority rules', () => {
     assert.ok(presets.every((item) => item.content.length > 50))
   })
 
-  it('never injects DeepSeek identity on custom endpoints when no instruction is active', () => {
-    const fixedNow = new Date(2026, 10, 23, 18, 30)
+  it('keeps custom endpoint system prompt static without DeepSeek identity or date/time', () => {
     const customEmpty = buildRequestSystemPrompt({
       customEndpoint: true,
       officialDefaultPrompt: OFFICIAL_PROMPT,
       effectivePromptContent: '',
-      now: fixedNow,
     })
-    assert.equal(customEmpty.includes('DeepSeek'), false)
-    assert.equal(customEmpty.includes('深度求索'), false)
-    assert.match(customEmpty, /^Current local date and time: 2026-11-23 18:30/)
+    assert.equal(customEmpty, '')
 
     const customWithPreset = buildRequestSystemPrompt({
       customEndpoint: true,
       officialDefaultPrompt: OFFICIAL_PROMPT,
       effectivePromptContent: '直接给出结论。',
-      now: fixedNow,
     })
-    assert.ok(customWithPreset.startsWith('直接给出结论。\n\nCurrent local date and time:'))
-    assert.equal(customWithPreset.includes('深度求索'), false)
+    assert.equal(customWithPreset, '直接给出结论。')
   })
 
   it('uses official default identity when no preset is active and replaces it when preset is active', () => {

@@ -18,8 +18,10 @@ import {
   HISTORY_MAX_OUTPUT_CHARS,
 } from '../src/elsewhere/tools/historyTool.js'
 import {
-  formatLocalDateTimeLine,
-  injectLocalDateTime,
+  formatLocalDateLine,
+  formatReminderPrefix,
+  isLocalDateReminder,
+  prependReminderToUserContent,
 } from '../src/elsewhere/tools/systemTime.js'
 import type { SearchToolsRuntimeConfig, ToolExecutionContext } from '../src/elsewhere/tools/types.js'
 import type { Session, SessionSummary } from '../src/services/chat/types.js'
@@ -38,14 +40,44 @@ const dummyCtx: ToolExecutionContext = {
   config: dummyConfig,
 }
 
-describe('local date/time injection', () => {
-  it('formats local date/time line cleanly and appends to system prompt', () => {
-    const sampleDate = new Date(2026, 10, 23, 9, 5)
-    const line = formatLocalDateTimeLine(sampleDate)
-    assert.match(line, /^Current local date and time: 2026-11-23 09:05 \([A-Za-z]+, UTC[+-]\d{2}:\d{2}\)\.$/)
+describe('local daily date snapshot reminder', () => {
+  it('formats date-only snapshot without clock minutes and folds into user content', () => {
+    const morning = new Date(2026, 10, 23, 9, 5)
+    const evening = new Date(2026, 10, 23, 22, 47)
+    const lineMorning = formatLocalDateLine(morning)
+    const lineEvening = formatLocalDateLine(evening)
 
-    assert.equal(injectLocalDateTime('', sampleDate), line)
-    assert.equal(injectLocalDateTime('You are helpful.', sampleDate), `You are helpful.\n\n${line}`)
+    assert.match(lineMorning, /^Current local date: 2026-11-23 \(Monday, UTC[+-]\d{2}:\d{2}\)\.$/)
+    assert.equal(lineMorning, lineEvening)
+    assert.equal(isLocalDateReminder(lineMorning), true)
+    assert.equal(isLocalDateReminder('2026-11-23,星期一,成都,Web,中文'), false)
+
+    assert.equal(
+      formatReminderPrefix('2026-11-23,星期一,成都,Web,中文'),
+      '[Current local date: 2026-11-23 (星期一).]'
+    )
+    assert.equal(
+      prependReminderToUserContent('今天天气如何', lineMorning),
+      `[${lineMorning}]\n\n今天天气如何`
+    )
+    assert.deepEqual(
+      prependReminderToUserContent(
+        [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: 'AA==' },
+          },
+        ],
+        lineMorning
+      ),
+      [
+        { type: 'text', text: `[${lineMorning}]` },
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/png', data: 'AA==' },
+        },
+      ]
+    )
   })
 })
 
