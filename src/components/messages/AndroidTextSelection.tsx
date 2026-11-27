@@ -7,6 +7,7 @@ import { useTranslate } from '../../i18n/index.js'
 import { showToast } from '../base/toastState.js'
 import { copyText } from '../../utils/clipboard.js'
 import { IconCopyOutline16, IconSelectAllOutline16 } from '../base/icons.js'
+import { findScrollContainer } from './scrollContext.js'
 import styles from './AndroidTextSelection.module.css'
 
 type TextSegment = {
@@ -51,6 +52,16 @@ type VisualLayout = {
   endAnchor: AnchorPoint
   toolbarTop: number
   toolbarLeft: number
+  toolbarVisible: boolean
+}
+
+type SelectionBounds = {
+  minRelTop: number
+  maxRelBottom: number
+  firstRel: RectBox
+  lastRel: RectBox
+  startAnchor: AnchorPoint
+  endAnchor: AnchorPoint
 }
 
 const BLOCK_SELECTOR = 'p, li, blockquote, h1, h2, h3, h4, h5, h6, pre, td, th, [data-latex-display="true"]'
@@ -59,7 +70,7 @@ const INLINE_SELECTOR =
 const IGNORED_SELECTOR = '[aria-hidden="true"], button, [role="toolbar"], .katex-mathml, .ds-markdown-cite'
 const HANDLE_SIZE = 22
 const TOOLBAR_MARGIN = 12
-const TOOLBAR_SAFE_BOTTOM = 84
+const TAP_SLOP = 8
 
 const collectSegments = (
   root: HTMLElement
@@ -488,6 +499,58 @@ const extractTextForRange = (segments: SelectionSegment[], start: number, end: n
   return parts.join('')
 }
 
+const computeViewportOverlay = (
+  containerEl: HTMLElement,
+  scrollEl: HTMLElement | null,
+  bounds: SelectionBounds,
+  toolbarWidth: number,
+  toolbarHeight: number
+) => {
+  const rootRect = containerEl.getBoundingClientRect()
+  const scrollRect = scrollEl
+    ? scrollEl.getBoundingClientRect()
+    : new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+
+  const minTop = rootRect.top + bounds.minRelTop
+  const maxBottom = rootRect.top + bounds.maxRelBottom
+  const firstTop = rootRect.top + bounds.firstRel.top
+  const lastBottom = rootRect.top + bounds.lastRel.top + bounds.lastRel.height
+  const firstLeft = rootRect.left + bounds.firstRel.left
+  const lastRight = rootRect.left + bounds.lastRel.left + bounds.lastRel.width
+
+  const toolbarVisible = maxBottom > scrollRect.top + 1 && minTop < scrollRect.bottom - 1
+  const safeTop = Math.max(TOOLBAR_MARGIN, scrollRect.top + 8)
+  const safeBottom = Math.min(window.innerHeight - TOOLBAR_MARGIN, scrollRect.bottom - 8)
+
+  let toolbarTop: number
+  if (
+    firstTop >= scrollRect.top &&
+    firstTop - toolbarHeight - 10 >= safeTop &&
+    firstTop - toolbarHeight - 10 <= safeBottom - toolbarHeight
+  ) {
+    toolbarTop = firstTop - toolbarHeight - 10
+  } else if (
+    lastBottom <= scrollRect.bottom &&
+    lastBottom + HANDLE_SIZE + 14 + toolbarHeight <= safeBottom &&
+    lastBottom + HANDLE_SIZE + 14 >= safeTop
+  ) {
+    toolbarTop = lastBottom + HANDLE_SIZE + 14
+  } else {
+    toolbarTop = Math.max(safeTop, Math.min(safeBottom - toolbarHeight, firstTop - toolbarHeight - 10))
+  }
+
+  const selectionCenterX =
+    Math.abs(bounds.firstRel.top - bounds.lastRel.top) < 1
+      ? (firstLeft + lastRight) / 2
+      : (rootRect.left + rootRect.right) / 2
+  const toolbarLeft = Math.max(
+    TOOLBAR_MARGIN,
+    Math.min(window.innerWidth - toolbarWidth - TOOLBAR_MARGIN, selectionCenterX - toolbarWidth / 2)
+  )
+
+  return { toolbarTop, toolbarLeft, toolbarVisible }
+}
+
 /**
  * 自由选词/字符级选择浮层：
  * 以真实文本节点 Range 几何为基准，提供可拖拽水滴手柄与浮动操作栏（复制 / 全选）。
@@ -517,9 +580,22 @@ export const AndroidTextSelection = ({
   const toolbarRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ anchor: number; verticalBias: number } | null>(null)
   const rangeRef = useRef<OffsetRange | null>(null)
+  const boundsRef = useRef<SelectionBounds | null>(null)
+  const toolbarSizeRef = useRef<{ width: number; height: number } | null>(null)
+  const pendingTapRef = useRef<{
+    pointerId: number
+    x: number
+    y: number
+    insideContainer: boolean
+    moved: boolean
+    scrolled: boolean
+  } | null>(null)
+  const suppressClickCleanupRef = useRef<(() => void) | null>(null)
   rangeRef.current = range
 
   useAndroidBackInterception(active)
+
+  useEffect(() => () => suppressClickCleanupRef.current?.(), [])
 
   // Initialize range when entering selection mode.
   useLayoutEffect(() => {
@@ -529,6 +605,8 @@ export const AndroidTextSelection = ({
       setTotalLength(0)
       setDragging(false)
       dragRef.current = null
+      boundsRef.current = null
+      pendingTapRef.current = null
       return
     }
     const contentEl = contentRef.current
@@ -549,17 +627,82 @@ export const AndroidTextSelection = ({
     }
   }, [active, contentRef, initialMode, initialPoint, onExit])
 
+  const getToolbarSize = useCallback(
+    (current: OffsetRange) => {
+      if (toolbarRef.current) {
+        const size = {
+          width: toolbarRef.current.offsetWidth || 134,
+          height: toolbarRef.current.offsetHeight || 54,
+        }
+        toolbarSizeRef.current = size
+        return size
+      }
+      if (toolbarSizeRef.current) {
+        return toolbarSizeRef.current
+      }
+      return {
+        width: current.start === 0 && current.end === totalLength ? 68 : 134,
+        height: 54,
+      }
+    },
+    [totalLength]
+  )
+
+  const syncExclusionRects = useCallback(
+    (bounds: SelectionBounds | null) => {
+      const containerEl = containerRef.current
+      if (!android?.setSelectionExclusion) {
+        return
+      }
+      if (!active || !bounds || !containerEl) {
+        android.setSelectionExclusion(0, 0, 0, 0, 0, 0, 0, 0, false)
+        return
+      }
+      const rootRect = containerEl.getBoundingClientRect()
+      const scrollEl = findScrollContainer(containerEl)
+      const scrollRect = scrollEl
+        ? scrollEl.getBoundingClientRect()
+        : new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+
+      const sx = rootRect.left + bounds.startAnchor.x
+      const sy = rootRect.top + bounds.startAnchor.y
+      const ex = rootRect.left + bounds.endAnchor.x
+      const ey = rootRect.top + bounds.endAnchor.y
+      const startVisible = sy >= scrollRect.top - 12 && sy <= scrollRect.bottom + 12
+      const endVisible = ey >= scrollRect.top - 12 && ey <= scrollRect.bottom + 12
+
+      if (!startVisible && !endVisible) {
+        android.setSelectionExclusion(0, 0, 0, 0, 0, 0, 0, 0, false)
+        return
+      }
+      android.setSelectionExclusion(
+        startVisible ? sx - 44 : 0,
+        startVisible ? sy - 12 : 0,
+        startVisible ? sx + 16 : 0,
+        startVisible ? sy + 52 : 0,
+        endVisible ? ex - 16 : 0,
+        endVisible ? ey - 12 : 0,
+        endVisible ? ex + 44 : 0,
+        endVisible ? ey + 52 : 0,
+        true
+      )
+    },
+    [active, containerRef]
+  )
+
   const recomputeLayout = useCallback(() => {
     const containerEl = containerRef.current
     const contentEl = contentRef.current
     const current = rangeRef.current
     if (!active || !containerEl || !contentEl || !current) {
+      boundsRef.current = null
       setLayout(null)
       return
     }
     const { segments } = collectSegments(contentEl)
     const clientRects = getAllSelectedClientRects(segments, current.start, current.end)
     if (clientRects.length === 0) {
+      boundsRef.current = null
       setLayout(null)
       return
     }
@@ -570,36 +713,23 @@ export const AndroidTextSelection = ({
       width: rect.width,
       height: rect.height,
     }))
+    let minRelTop = highlights[0].top
+    let maxRelBottom = highlights[0].top + highlights[0].height
+    for (const box of highlights) {
+      if (box.top < minRelTop) {
+        minRelTop = box.top
+      }
+      if (box.top + box.height > maxRelBottom) {
+        maxRelBottom = box.top + box.height
+      }
+    }
     const first = clientRects[0]
     const last = clientRects[clientRects.length - 1]
-
-    const toolbarWidth = toolbarRef.current?.offsetWidth || (current.start === 0 && current.end === totalLength ? 68 : 134)
-    const toolbarHeight = toolbarRef.current?.offsetHeight || 54
-    const safeTop = Math.max(
-      TOOLBAR_MARGIN,
-      Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--android-status-inset')) + 58 ||
-        82
-    )
-    const safeBottom = window.innerHeight - TOOLBAR_SAFE_BOTTOM
-
-    let toolbarTop: number
-    if (first.top - toolbarHeight - 10 >= safeTop) {
-      toolbarTop = first.top - toolbarHeight - 10
-    } else if (last.bottom + HANDLE_SIZE + 14 + toolbarHeight <= safeBottom) {
-      toolbarTop = last.bottom + HANDLE_SIZE + 14
-    } else {
-      toolbarTop = Math.max(safeTop, Math.min(safeBottom - toolbarHeight, first.top - toolbarHeight - 10))
-    }
-
-    const selectionCenterX =
-      first.top === last.top ? (first.left + last.right) / 2 : (rootRect.left + rootRect.right) / 2
-    const toolbarLeft = Math.max(
-      TOOLBAR_MARGIN,
-      Math.min(window.innerWidth - toolbarWidth - TOOLBAR_MARGIN, selectionCenterX - toolbarWidth / 2)
-    )
-
-    setLayout({
-      highlights,
+    const bounds: SelectionBounds = {
+      minRelTop,
+      maxRelBottom,
+      firstRel: highlights[0],
+      lastRel: highlights[highlights.length - 1],
       startAnchor: {
         x: first.left - rootRect.left,
         y: first.bottom - rootRect.top,
@@ -610,58 +740,152 @@ export const AndroidTextSelection = ({
         y: last.bottom - rootRect.top,
         height: last.height,
       },
-      toolbarTop,
-      toolbarLeft,
+    }
+    boundsRef.current = bounds
+
+    const scrollEl = findScrollContainer(containerEl)
+    const { width: toolbarWidth, height: toolbarHeight } = getToolbarSize(current)
+    const overlay = computeViewportOverlay(containerEl, scrollEl, bounds, toolbarWidth, toolbarHeight)
+
+    setLayout({
+      highlights,
+      startAnchor: bounds.startAnchor,
+      endAnchor: bounds.endAnchor,
+      ...overlay,
     })
-  }, [active, containerRef, contentRef, totalLength])
+  }, [active, containerRef, contentRef, getToolbarSize])
+
+  const updateOverlayOnScroll = useCallback(() => {
+    const containerEl = containerRef.current
+    const bounds = boundsRef.current
+    const current = rangeRef.current
+    if (!active || !containerEl || !bounds || !current) {
+      return
+    }
+    const scrollEl = findScrollContainer(containerEl)
+    const { width: toolbarWidth, height: toolbarHeight } = getToolbarSize(current)
+    const overlay = computeViewportOverlay(containerEl, scrollEl, bounds, toolbarWidth, toolbarHeight)
+    setLayout((prev) => {
+      if (
+        !prev ||
+        (prev.toolbarTop === overlay.toolbarTop &&
+          prev.toolbarLeft === overlay.toolbarLeft &&
+          prev.toolbarVisible === overlay.toolbarVisible)
+      ) {
+        return prev
+      }
+      return { ...prev, ...overlay }
+    })
+    syncExclusionRects(bounds)
+  }, [active, containerRef, getToolbarSize, syncExclusionRects])
 
   useLayoutEffect(() => {
     recomputeLayout()
   }, [range, dragging, recomputeLayout])
 
-  // Prevent Android edge-back gesture from hijacking handle drags near the screen edge.
+  // Prevent Android edge-back gesture from hijacking visible handle drags near the screen edge.
   useEffect(() => {
-    const containerEl = containerRef.current
-    if (!active || !layout || !containerEl || !android?.setSelectionExclusion) {
+    if (!active || !layout) {
+      android?.setSelectionExclusion?.(0, 0, 0, 0, 0, 0, 0, 0, false)
       return
     }
-    const rootRect = containerEl.getBoundingClientRect()
-    const sx = rootRect.left + layout.startAnchor.x
-    const sy = rootRect.top + layout.startAnchor.y
-    const ex = rootRect.left + layout.endAnchor.x
-    const ey = rootRect.top + layout.endAnchor.y
-    android.setSelectionExclusion(
-      sx - 44,
-      sy - 12,
-      sx + 16,
-      sy + 52,
-      ex - 16,
-      ey - 12,
-      ex + 44,
-      ey + 52,
-      true
-    )
+    syncExclusionRects(boundsRef.current)
     return () => {
       android?.setSelectionExclusion?.(0, 0, 0, 0, 0, 0, 0, 0, false)
     }
-  }, [active, containerRef, layout])
+  }, [active, layout, syncExclusionRects])
 
-  // Keep layout synced with scroll / viewport changes, and handle outside tap & back/Escape.
+  // Keep layout synced with scroll / viewport / content changes, and dismiss only on non-scroll tap or back/Escape/outside contextmenu.
   useEffect(() => {
     if (!active) {
       return
     }
-    let raf = 0
-    const scheduleUpdate = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(recomputeLayout)
+    let scrollRaf = 0
+    let resizeRaf = 0
+    const scheduleScrollUpdate = () => {
+      if (pendingTapRef.current) {
+        pendingTapRef.current.scrolled = true
+      }
+      cancelAnimationFrame(scrollRaf)
+      scrollRaf = requestAnimationFrame(updateOverlayOnScroll)
     }
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null
-      if (target?.closest('[data-selection-interactive="true"]')) {
+    const scheduleFullRecompute = () => {
+      cancelAnimationFrame(resizeRaf)
+      resizeRaf = requestAnimationFrame(recomputeLayout)
+    }
+    const suppressNextClickOnContainer = () => {
+      const containerEl = containerRef.current
+      if (!containerEl) {
         return
       }
+      suppressClickCleanupRef.current?.()
+      const onClickCapture = (event: MouseEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        suppressClickCleanupRef.current?.()
+      }
+      const timer = window.setTimeout(() => {
+        suppressClickCleanupRef.current?.()
+      }, 350)
+      suppressClickCleanupRef.current = () => {
+        window.clearTimeout(timer)
+        containerEl.removeEventListener('click', onClickCapture, true)
+        suppressClickCleanupRef.current = null
+      }
+      containerEl.addEventListener('click', onClickCapture, true)
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) {
+        return
+      }
+      const target = event.target instanceof Node ? event.target : null
+      if (target instanceof Element && target.closest('[data-selection-interactive="true"]')) {
+        pendingTapRef.current = null
+        return
+      }
+      pendingTapRef.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        insideContainer: Boolean(target && containerRef.current?.contains(target)),
+        moved: false,
+        scrolled: false,
+      }
+    }
+    const onPointerMove = (event: PointerEvent) => {
+      const tap = pendingTapRef.current
+      if (!tap || tap.pointerId !== event.pointerId || tap.moved) {
+        return
+      }
+      if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP) {
+        tap.moved = true
+      }
+    }
+    const onPointerCancel = (event: PointerEvent) => {
+      if (pendingTapRef.current?.pointerId === event.pointerId) {
+        pendingTapRef.current = null
+      }
+    }
+    const onPointerUp = (event: PointerEvent) => {
+      const tap = pendingTapRef.current
+      if (!tap || tap.pointerId !== event.pointerId) {
+        return
+      }
+      pendingTapRef.current = null
+      if (tap.moved || tap.scrolled) {
+        return
+      }
+      if (tap.insideContainer) {
+        suppressNextClickOnContainer()
+      }
       onExit()
+    }
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target instanceof Node ? event.target : null
+      if (!target || !containerRef.current?.contains(target)) {
+        pendingTapRef.current = null
+        onExit()
+      }
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -671,20 +895,35 @@ export const AndroidTextSelection = ({
     const onAndroidBack = () => {
       onExit()
     }
-    window.addEventListener('scroll', scheduleUpdate, true)
-    window.addEventListener('resize', scheduleUpdate)
+    const contentEl = contentRef.current
+    const resizeObserver = contentEl ? new ResizeObserver(scheduleFullRecompute) : null
+    if (contentEl && resizeObserver) {
+      resizeObserver.observe(contentEl)
+    }
+    window.addEventListener('scroll', scheduleScrollUpdate, true)
+    window.addEventListener('resize', scheduleFullRecompute)
     document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('pointermove', onPointerMove, true)
+    document.addEventListener('pointerup', onPointerUp, true)
+    document.addEventListener('pointercancel', onPointerCancel, true)
+    document.addEventListener('contextmenu', onContextMenu, true)
     document.addEventListener('keydown', onKeyDown)
     window.addEventListener('android-back', onAndroidBack)
     return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', scheduleUpdate, true)
-      window.removeEventListener('resize', scheduleUpdate)
+      cancelAnimationFrame(scrollRaf)
+      cancelAnimationFrame(resizeRaf)
+      resizeObserver?.disconnect()
+      window.removeEventListener('scroll', scheduleScrollUpdate, true)
+      window.removeEventListener('resize', scheduleFullRecompute)
       document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('pointermove', onPointerMove, true)
+      document.removeEventListener('pointerup', onPointerUp, true)
+      document.removeEventListener('pointercancel', onPointerCancel, true)
+      document.removeEventListener('contextmenu', onContextMenu, true)
       document.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('android-back', onAndroidBack)
     }
-  }, [active, onExit, recomputeLayout])
+  }, [active, containerRef, contentRef, onExit, recomputeLayout, updateOverlayOnScroll])
 
   // Track active handle drag across the whole window.
   useEffect(() => {
@@ -701,7 +940,14 @@ export const AndroidTextSelection = ({
       if (total === 0) {
         return
       }
-      const targetY = event.clientY - drag.verticalBias
+      const scrollEl = findScrollContainer(containerRef.current)
+      const scrollRect = scrollEl
+        ? scrollEl.getBoundingClientRect()
+        : new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+      const targetY = Math.max(
+        scrollRect.top + 4,
+        Math.min(scrollRect.bottom - 4, event.clientY - drag.verticalBias)
+      )
       const next = resolveOffsetAtPoint(segments, total, event.clientX, targetY)
       if (next === drag.anchor) {
         const start = Math.max(0, drag.anchor - 1)
@@ -723,7 +969,7 @@ export const AndroidTextSelection = ({
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [contentRef, dragging])
+  }, [containerRef, contentRef, dragging])
 
   if (!active || !layout || !range) {
     return null
@@ -826,7 +1072,7 @@ export const AndroidTextSelection = ({
       >
         <span className={styles.teardrop} />
       </button>
-      {!dragging
+      {!dragging && layout.toolbarVisible
         ? createPortal(
             <div
               ref={toolbarRef}

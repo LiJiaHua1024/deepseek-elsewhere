@@ -57,10 +57,37 @@ const estimateFileTokens = (file: FileAttachment) => {
   return file.isImage ? 4_096 : Math.min(131_072, Math.max(512, Math.ceil(file.size / 2)))
 }
 
-export const estimateQuestionTokens = ({ content, files }: UserMessage) =>
-  16 +
-  estimateTextTokens(content) +
-  files.reduce((total, file) => total + estimateFileTokens(file), 0)
+const questionTokenCache = new WeakMap<UserMessage, number>()
+const replyTokenCache = new WeakMap<AssistantMessage, number>()
+
+export const estimateQuestionTokens = (user: UserMessage) => {
+  const cached = questionTokenCache.get(user)
+  if (cached !== undefined) {
+    return cached
+  }
+  const tokens =
+    16 +
+    estimateTextTokens(user.content) +
+    user.files.reduce((total, file) => total + estimateFileTokens(file), 0)
+  questionTokenCache.set(user, tokens)
+  return tokens
+}
+
+const estimateReplyTokens = (reply: AssistantMessage) => {
+  const settleable = reply.status === 'done' || reply.status === 'stopped'
+  if (settleable) {
+    const cached = replyTokenCache.get(reply)
+    if (cached !== undefined) {
+      return cached
+    }
+  }
+  const links = reply.blocks.filter((block) => block.type === 'web_fetch_tool_result').length
+  const tokens = estimateTextTokens(getReplyText(reply)) + links * 8_192 + 32
+  if (settleable) {
+    replyTokenCache.set(reply, tokens)
+  }
+  return tokens
+}
 
 export const estimatePrefixTokens = (prefix?: AssistantMessage) =>
   prefix?.blocks.reduce((total, block) => {
@@ -104,10 +131,8 @@ type Cursor = { index: number; offset: number }
 type SummaryRequest = { previous?: string; excerpts: string[] }
 export type HistoryContext = { history: Message[]; summary?: string; tokens: number }
 
-const roundTokens = ([user, reply]: Round) => {
-  const links = reply.blocks.filter((block) => block.type === 'web_fetch_tool_result').length
-  return estimateQuestionTokens(user) + estimateTextTokens(getReplyText(reply)) + links * 8_192 + 32
-}
+const roundTokens = ([user, reply]: Round) =>
+  estimateQuestionTokens(user) + estimateReplyTokens(reply)
 
 const scaleTokens = (tokens: number, scale: number) =>
   scale === 1 ? tokens : Math.ceil(tokens * scale)
@@ -148,7 +173,8 @@ export const estimateBranchScale = (
     if (hasTools) {
       return calibrated
     }
-    const promptEstimate = historyEstimate + estimateQuestionTokens(user)
+    const questionTokens = estimateQuestionTokens(user)
+    const promptEstimate = historyEstimate + questionTokens
     const textBlocks = reply.blocks.filter((block) => block.type === 'text' && !block.isTemplate)
     if (
       reply.status === 'done' &&
@@ -170,7 +196,7 @@ export const estimateBranchScale = (
         calibrated = Math.min(MAX_CALIBRATION_SCALE, Math.max(MIN_CALIBRATION_SCALE, ratio))
       }
     }
-    historyEstimate += roundTokens(round)
+    historyEstimate += questionTokens + estimateReplyTokens(reply)
   }
   return calibrated
 }

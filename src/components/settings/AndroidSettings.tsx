@@ -532,7 +532,6 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
   const edgeVoices = useEdgeVoicesStore((state) => state.voices)
   const [busy, setBusy] = useState(false)
   const [update, setUpdate] = useState<UpdateStatus>({ phase: 'idle' })
-  const [updateFallback, setUpdateFallback] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
   const [importStatus, setImportStatus] = useState<LinkedMessage | null>(null)
@@ -592,11 +591,6 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
           type: status.message === 'current' ? undefined : 'error',
         })
       }
-      setUpdateFallback(
-        status.message === 'checkFailed' ||
-          status.message === 'downloadFailed' ||
-          status.message === 'installerUnavailable'
-      )
     }
     window.addEventListener('android-update', onUpdate)
     try {
@@ -1050,13 +1044,11 @@ const Settings = ({ start, chatFrame }: { start: Page; chatFrame: RefObject<HTML
                   arrow={false}
                 />
               ) : null}
-              {updateFallback || update.phase === 'ready' ? (
-                <Row
-                  label={t('updateOpenReleases')}
-                  icon={<IconLinkOutline16 />}
-                  href={releasesUrl}
-                />
-              ) : null}
+              <Row
+                label={t('updateOpenReleases')}
+                icon={<IconLinkOutline16 />}
+                href={releasesUrl}
+              />
               <Row
                 label={labels.agreements}
                 icon={<PolicyIcon />}

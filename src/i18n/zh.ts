@@ -66,6 +66,10 @@ export const zh = {
   storageMigrationRecovered: '已从本机旧备份恢复 {count} 条对话',
   storageMigrationIncomplete:
     '已保留旧存储。{missing} 条对话无法恢复，{unverified} 条镜像记录无法核对',
+  storageMigrationReading: '正在读取旧版历史记录...',
+  storageMigrationSessions: '正在迁移本地对话（{done}/{total}）...',
+  storageMigrationFiles: '正在迁移本地附件（{done}/{total}）...',
+  storageMigrationFinalizing: '正在完成历史记录迁移...',
   sessionDeleteFailed: '删除对话失败，请重试',
   settings: '设置',
   checkForUpdate: '检查更新',

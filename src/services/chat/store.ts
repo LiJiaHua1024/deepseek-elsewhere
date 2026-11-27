@@ -98,7 +98,7 @@ import { isNativePdfRejectionError } from '../../elsewhere/attachments/pdfExtrac
 import { setAttachmentProgress } from '../../elsewhere/attachments/progress.js'
 import { showToast } from '../../components/base/toastState.js'
 import * as db from './db.js'
-import type { MigrationNotice } from './androidStorage.js'
+import type { MigrationNotice, MigrationProgress } from './androidStorage.js'
 import {
   cancelMessageEdit,
   clearAllDrafts,
@@ -189,6 +189,7 @@ type ChatState = {
   pendingJump: PendingMessageJump | null
   /** 正在生成回复的会话 */
   streaming: Record<string, AbortController>
+  migrationProgress: MigrationProgress | null
   storageAlert: TranslationMessage | null
 }
 
@@ -203,6 +204,7 @@ export const useChatStore = create<ChatState>(() => ({
   activeId: null,
   pendingJump: null,
   streaming: {},
+  migrationProgress: null,
   storageAlert: null,
 }))
 
@@ -382,7 +384,8 @@ export const bindChatPersistence = () => {
 
 /** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
 const createReply = (): AssistantMessage => {
-  const { thinking, search, chatConfig } = useSettings.getState()
+  const settings = useSettings.getState()
+  const { thinking, search, chatConfig } = settings
   const customEndpoint = Boolean(chatConfig.endpoint)
   return {
     id: createId(),
@@ -392,6 +395,7 @@ const createReply = (): AssistantMessage => {
     thinking,
     search,
     prefix: !customEndpoint && chatConfig.format === 'messages',
+    latestReminder: customEndpoint ? formatLocalDateLine() : createLatestReminder(settings),
     status: 'pending',
     blocks: [],
   }
@@ -429,6 +433,9 @@ if (typeof window !== 'undefined') {
           : { key: 'storageMigrationRecovered', params: { count: recovered } },
     })
   })
+  window.addEventListener('chat-storage-migration-progress', (event) => {
+    set({ migrationProgress: (event as CustomEvent<MigrationProgress | null>).detail ?? null })
+  })
 }
 
 export const initChat = (): Promise<void> => {
@@ -439,16 +446,16 @@ export const initChat = (): Promise<void> => {
     return initTask
   }
   const epoch = historyEpoch
-  set({ initError: false })
+  set({ initError: false, migrationProgress: null })
   initTask = (async () => {
     try {
       const summaries = await db.loadSessionSummaries()
       if (epoch === historyEpoch) {
-        set({ ready: true, sessions: sortSessions(summaries) })
+        set({ ready: true, migrationProgress: null, sessions: sortSessions(summaries) })
       }
     } catch (error) {
       if (epoch === historyEpoch) {
-        set({ initError: true })
+        set({ initError: true, migrationProgress: null })
         db.reportStorageError('read local sessions')(error)
       }
     } finally {
@@ -1516,6 +1523,34 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
     signal.addEventListener('abort', onAbort, { once: true })
   })
 
+/** 让出一帧完成首屏消息渲染，再进行历史估算与请求准备。 */
+const yieldToPaint = (signal: AbortSignal) => {
+  if (
+    signal.aborted ||
+    typeof requestAnimationFrame !== 'function' ||
+    typeof document === 'undefined' ||
+    document.visibilityState !== 'visible'
+  ) {
+    return Promise.resolve()
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) {
+        return
+      }
+      settled = true
+      clearTimeout(fallbackTimer)
+      cancelAnimationFrame(rafId)
+      signal.removeEventListener('abort', finish)
+      resolve()
+    }
+    const rafId = requestAnimationFrame(finish)
+    const fallbackTimer = setTimeout(finish, 32)
+    signal.addEventListener('abort', finish, { once: true })
+  })
+}
+
 /**
  * 请求并消费流：先补齐附件的 serverId，再发请求；流式增量按动画帧刷新内存，完成、失败或停止后落盘。
  * 补传失败时回复记为 upload 错误，可重试。
@@ -1549,41 +1584,46 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   streamFlushes.set(sessionId, flushController)
 
   const signal = controller.signal
-  const summarize = createContextSummarizer(apiKey, signal, chatConfig)
-  const requestModel = reply.model ?? DEFAULT_CHAT_MODEL
-  const initialOutputTokens = custom ? CUSTOM_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS
-  const minOutputReserve = custom ? CUSTOM_OUTPUT_TOKENS : MIN_OUTPUT_RESERVE
-  const fallbackOutputTokens = custom ? 1_024 : initial.thinking ? 32_768 : 8_192
-  const modelWindow = getActiveModelContextWindow()
-  const window = custom ? (modelWindow ?? CUSTOM_CONTEXT_WINDOW) : modelWindow
-  const windowLimit = window ?? WINDOW_TOKENS
-  const tokenScale = estimateBranchScale(
-    request.history,
-    requestModel,
-    getSession(sessionId)?.contextCheckpoints
-  )
-  const scaleEstimate = (tokens: number) =>
-    tokenScale === 1 ? tokens : Math.ceil(tokens * tokenScale)
-  const budget = contextBudget(minOutputReserve, window)
-  let historyBudget = Math.max(
-    0,
-    budget.input -
-      scaleEstimate(
-        estimateQuestionTokens(request.question) + estimatePrefixTokens(request.prefix)
-      ) -
-      PROMPT_OVERHEAD_TOKENS
-  )
-  let historyRetries = 0
-  let historySummaryRequests = 0
-  let context: HistoryContext | undefined
-  let maxOutputTokens = initialOutputTokens
-  let reduceInput = false
-  let reducedInput: Awaited<ReturnType<typeof summarizeCurrentInput>> = null
-  let invalidatedRetries = 0
-  const forcedLocalPdfIds = new Set<string>()
-  let pdfFallbackUsed = false
-  let lastNativePdfIds = new Set<string>()
   try {
+    await yieldToPaint(signal)
+    if (controller.signal.aborted) {
+      reply = settleReply(reply, 'stopped', Date.now())
+      return
+    }
+    const summarize = createContextSummarizer(apiKey, signal, chatConfig)
+    const requestModel = reply.model ?? DEFAULT_CHAT_MODEL
+    const initialOutputTokens = custom ? CUSTOM_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS
+    const minOutputReserve = custom ? CUSTOM_OUTPUT_TOKENS : MIN_OUTPUT_RESERVE
+    const fallbackOutputTokens = custom ? 1_024 : initial.thinking ? 32_768 : 8_192
+    const modelWindow = getActiveModelContextWindow()
+    const window = custom ? (modelWindow ?? CUSTOM_CONTEXT_WINDOW) : modelWindow
+    const windowLimit = window ?? WINDOW_TOKENS
+    const tokenScale = estimateBranchScale(
+      request.history,
+      requestModel,
+      getSession(sessionId)?.contextCheckpoints
+    )
+    const scaleEstimate = (tokens: number) =>
+      tokenScale === 1 ? tokens : Math.ceil(tokens * tokenScale)
+    const budget = contextBudget(minOutputReserve, window)
+    let historyBudget = Math.max(
+      0,
+      budget.input -
+        scaleEstimate(
+          estimateQuestionTokens(request.question) + estimatePrefixTokens(request.prefix)
+        ) -
+        PROMPT_OVERHEAD_TOKENS
+    )
+    let historyRetries = 0
+    let historySummaryRequests = 0
+    let context: HistoryContext | undefined
+    let maxOutputTokens = initialOutputTokens
+    let reduceInput = false
+    let reducedInput: Awaited<ReturnType<typeof summarizeCurrentInput>> = null
+    let invalidatedRetries = 0
+    const forcedLocalPdfIds = new Set<string>()
+    let pdfFallbackUsed = false
+    let lastNativePdfIds = new Set<string>()
     for (;;) {
       /** 附件补齐前出错属于上传失败，请求还没有发出 */
       let preparing = false
@@ -1678,13 +1718,14 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
         const latestReminder = prepared.prefix
           ? prepared.prefix.latestReminder
-          : custom
-            ? formatLocalDateLine()
-            : createLatestReminder(useSettings.getState())
-        reply = { ...reply, latestReminder }
-        updateReply(sessionId, reply)
-        persist(sessionId)
-        flushController.markPersisted()
+          : (reply.latestReminder ??
+              (custom ? formatLocalDateLine() : createLatestReminder(useSettings.getState())))
+        if (reply.latestReminder !== latestReminder) {
+          reply = { ...reply, latestReminder }
+          updateReply(sessionId, reply)
+          persist(sessionId)
+          flushController.markPersisted()
+        }
         const activeQuestion = reducedInput?.question ?? prepared.question
         const activePrefix = reducedInput ? reducedInput.prefix : prepared.prefix
         messages = toRequestMessages(

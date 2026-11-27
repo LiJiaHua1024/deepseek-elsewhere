@@ -84,6 +84,7 @@ const ChatContent = memo(function ChatContent({
   const t = useTranslate()
   const ready = useChatStore((state) => state.ready)
   const initError = useChatStore((state) => state.initError)
+  const migrationProgress = useChatStore((state) => state.migrationProgress)
   const activeId = useChatStore((state) => state.activeId)
   const session = useChatStore((state) =>
     state.activeId !== null && Object.hasOwn(state.sessionCache, state.activeId)
@@ -99,19 +100,28 @@ const ChatContent = memo(function ChatContent({
 
   if (!ready || (activeId !== null && !session)) {
     const loadFailed = !ready ? initError : sessionLoadError
+    const loadingText = loadFailed
+      ? t(!ready ? 'sessionListLoadFailed' : 'sessionLoadFailed')
+      : !ready && migrationProgress
+        ? migrationProgress.stage === 'reading'
+          ? t('storageMigrationReading')
+          : migrationProgress.stage === 'sessions'
+            ? t('storageMigrationSessions', {
+                done: migrationProgress.done,
+                total: migrationProgress.total,
+              })
+            : migrationProgress.stage === 'files'
+              ? t('storageMigrationFiles', {
+                  done: migrationProgress.done,
+                  total: migrationProgress.total,
+                })
+              : t('storageMigrationFinalizing')
+        : t('sessionLoading')
     return (
       <div className={styles.loadingView}>
         {isMobile ? <MobileHeader /> : null}
         <div className={styles.loadingState} role="status" aria-live="polite">
-          <span>
-            {t(
-              loadFailed
-                ? !ready
-                  ? 'sessionListLoadFailed'
-                  : 'sessionLoadFailed'
-                : 'sessionLoading'
-            )}
-          </span>
+          <span>{loadingText}</span>
           {loadFailed ? (
             <Button
               variant="outlined"

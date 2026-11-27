@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -580,7 +581,7 @@ public final class MainActivity extends Activity {
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         recorder.finish(false);
         historyExport.close();
-        chatStorage.disconnect(storageOwner);
+        chatStorage.disconnectAsync(storageOwner);
         imageSave.finish(false);
         frame.removeView(webView);
         webView.destroy();
@@ -620,6 +621,34 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void dispatchChatStorageReply(String id, String reply) {
+        runOnUiThread(() -> {
+            if (isDestroyed() || webView == null) return;
+            String quotedId = JSONObject.quote(id);
+            try {
+                String safeReply = reply.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029");
+                webView.evaluateJavascript(
+                    "(function(){try{window.dispatchEvent(new CustomEvent('android-chat-storage',{detail:{id:"
+                    + quotedId + ",reply:" + safeReply + "}}));return 1;}catch(e){return 0;}})()",
+                    result -> {
+                        if (!"1".equals(result)) {
+                            dispatchChatStorageError(quotedId);
+                        }
+                    });
+            } catch (Throwable error) {
+                Log.e("ChatStorage", "Reply dispatch failed (" + error.getClass().getSimpleName() + ")");
+                dispatchChatStorageError(quotedId);
+            }
+        });
+    }
+
+    private void dispatchChatStorageError(String quotedId) {
+        if (isDestroyed() || webView == null) return;
+        webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('android-chat-storage',{detail:{id:"
+            + quotedId + ",reply:{error:'Android chat storage reply failed'}}}))",
+            null);
+    }
     private final class DeviceBridge {
         @JavascriptInterface
         public float statusInset() { return statusInset; }
@@ -989,6 +1018,24 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public String chatStorage(String method, String json) {
             return chatStorage.request(storageOwner, method, json);
+        }
+
+        @JavascriptInterface
+        public void chatStorageAsync(String id, String method, String json) {
+            chatStorage.requestAsync(storageOwner, method, json,
+                reply -> dispatchChatStorageReply(id, reply));
+        }
+
+        @JavascriptInterface
+        public void chatStorageAppendAsync(String id, String object, String data) {
+            chatStorage.appendAsync(storageOwner, object, data,
+                reply -> dispatchChatStorageReply(id, reply));
+        }
+
+        @JavascriptInterface
+        public void chatStorageWriteSessionAsync(String id, String metaJson, String sessionJson) {
+            chatStorage.writeSessionAsync(storageOwner, metaJson, sessionJson,
+                reply -> dispatchChatStorageReply(id, reply));
         }
 
         @JavascriptInterface

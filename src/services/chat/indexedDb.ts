@@ -89,6 +89,7 @@ const getDB = () => {
     upgrade(db, oldVersion, _newVersion, tx) {
       if (oldVersion === 0 && openedOnce) {
         resetDetected = true
+        tx.done.catch(() => {})
         tx.abort()
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('chat-storage-reset'))
@@ -699,36 +700,99 @@ export const beginStaging = async () => {
   }
 }
 
+const withTimeout = <Result>(
+  promise: Promise<Result>,
+  ms: number,
+  message: string
+): Promise<Result> => {
+  promise.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    promise,
+    new Promise<Result>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms)
+    }),
+  ]).finally(() => {
+    if (timer !== undefined) {
+      clearTimeout(timer)
+    }
+  })
+}
+
 /** Upgrade reads the existing active slot without upgrading or creating the legacy database. */
 export const openLegacyHistory = async () => {
   let missing = false
-  const db = await openDB<ChatDB>('chat-demo', undefined, {
+  let terminated = false
+  let timedOut = false
+  const opening = openDB<ChatDB>('chat-demo', undefined, {
     upgrade(_db, version, _next, tx) {
       if (version === 0) {
         missing = true
+        tx.done.catch(() => {})
         tx.abort()
       }
     },
-  }).catch((error: unknown) => {
-    if (!missing) {
-      throw error
+    blocking() {
+      terminated = true
+      void opening.then((db) => db.close()).catch(() => {})
+    },
+    terminated() {
+      terminated = true
+    },
+  }).then((db) => {
+    if (timedOut) {
+      db.close()
     }
+    return db
   })
+  const db = await withTimeout(opening, 15_000, 'Timed out opening legacy history').catch(
+    (error: unknown) => {
+      timedOut = true
+      if (!missing) {
+        throw error
+      }
+      return undefined
+    }
+  )
   if (!db) {
     return undefined
   }
   try {
     const state = db.objectStoreNames.contains('historyState')
-      ? await db.get('historyState', 'active')
+      ? await withTimeout(
+          db.get('historyState', 'active'),
+          15_000,
+          'Timed out reading legacy history state'
+        )
       : undefined
-    const { sessions, summaries, files } = slots[state?.slot ?? 'primary']
+    const slot = state?.slot === 'alternate' ? 'alternate' : 'primary'
+    const { sessions, summaries, files } = slots[slot]
     const keys = async (name: typeof sessions | typeof summaries | typeof files) =>
-      db.objectStoreNames.contains(name) ? await db.getAllKeys(name) : []
+      db.objectStoreNames.contains(name)
+        ? await withTimeout(
+            db.getAllKeys(name),
+            15_000,
+            `Timed out listing legacy store: ${name}`
+          )
+        : []
     return {
       close: () => db.close(),
+      isClosed: () => terminated,
       sessionIds: () => keys(sessions),
       summaryIds: () => keys(summaries),
       fileIds: () => keys(files),
+      sessions: async (ids: string[]) => {
+        if (!ids.length || !db.objectStoreNames.contains(sessions)) {
+          return ids.map(() => undefined)
+        }
+        const tx = db.transaction(sessions, 'readonly')
+        const store = tx.objectStore(sessions)
+        const [results] = await Promise.all([
+          Promise.all(ids.map((id) => store.get(id))),
+          tx.done,
+        ])
+        return results
+      },
       session: (id: string) => db.get(sessions, id),
       file: (id: string) => db.get(files, id),
     }
@@ -741,7 +805,31 @@ export const openLegacyHistory = async () => {
 export const deleteLegacyHistory = () =>
   new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase('chat-demo')
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-    request.onblocked = () => reject(new Error('Legacy history cleanup is blocked'))
+    let settled = false
+    let blockedTimer: ReturnType<typeof setTimeout> | undefined
+    const cleanup = () => {
+      clearTimeout(totalTimer)
+      if (blockedTimer !== undefined) {
+        clearTimeout(blockedTimer)
+        blockedTimer = undefined
+      }
+    }
+    const finish = (cb: () => void) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      cb()
+    }
+    const totalTimer = setTimeout(() => {
+      finish(() => reject(new Error('Legacy history cleanup timed out')))
+    }, 10_000)
+    request.onsuccess = () => finish(resolve)
+    request.onerror = () => finish(() => reject(request.error))
+    request.onblocked = () => {
+      blockedTimer ??= setTimeout(() => {
+        finish(() => reject(new Error('Legacy history cleanup is blocked')))
+      }, 3000)
+    }
   })

@@ -155,6 +155,7 @@ export const AssistantMessage = memo(function AssistantMessage({
     <div
       className={clsx(styles.message, searchHighlightNonce !== null && styles.searchHighlighted)}
       data-message-id={message.id}
+      data-search-highlighted={searchHighlightNonce !== null ? 'true' : undefined}
     >
       {searchHighlightNonce !== null ? (
         <div key={searchHighlightNonce} className={styles.searchHighlight} aria-hidden="true" />

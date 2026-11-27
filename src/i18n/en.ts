@@ -68,6 +68,10 @@ export const en = {
   storageMigrationRecovered: 'Restored {count} chat(s) from the previous on-device backup.',
   storageMigrationIncomplete:
     'The previous storage was kept. {missing} chat(s) could not be recovered and {unverified} backup record(s) could not be verified.',
+  storageMigrationReading: 'Reading previous local history...',
+  storageMigrationSessions: 'Migrating local chats ({done}/{total})...',
+  storageMigrationFiles: 'Migrating local attachments ({done}/{total})...',
+  storageMigrationFinalizing: 'Finishing history migration...',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
   checkForUpdate: 'Check for updates',
